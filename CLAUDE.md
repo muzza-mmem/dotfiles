@@ -4,24 +4,22 @@ Configuration files for local packages (vim, tmux, etc.), organized for use with
 
 ## Layout
 
-Each top-level directory is a Stow "package" mirroring the structure that should appear under `~` (or `~/.config`). For example:
+Each top-level directory is a Stow "package" mirroring the structure that should appear under `~`. **Always prefer `~/.config/<package>/` as the destination** — do not place config files directly under `~` (e.g. `tmux/.tmux.conf` → `~/.tmux.conf`). Use the tmux package as the canonical example:
 
 ```
 dotfiles/
-├── vim/
-│   └── .vimrc
-├── tmux/
-│   └── .tmux.conf
-└── nvim/
+└── tmux/
     └── .config/
-        └── nvim/
-            └── init.lua
+        └── tmux/
+            └── tmux.conf
 ```
+
+This stows to `~/.config/tmux/tmux.conf`. Only fall back to placing a file directly under `~` if the tool genuinely does not support `XDG_CONFIG_HOME` / `~/.config`.
 
 ## Adding configs for a new package
 
 1. Create a directory named after the package (e.g. `tmux/`).
-2. Place config files inside it mirroring their destination path relative to `~` (e.g. `tmux/.tmux.conf` → `~/.tmux.conf`, or `foo/.config/foo/config` → `~/.config/foo/config`).
+2. Inside it, create `.config/<package>/` and place config files there so they stow to `~/.config/<package>/` (e.g. `foo/.config/foo/config` → `~/.config/foo/config`).
 3. From the repo root, run Stow to symlink it into place:
 
    ```
