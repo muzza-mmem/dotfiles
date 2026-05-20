@@ -76,6 +76,33 @@ source $ZSH/oh-my-zsh.sh
 
 # User configuration
 
+# History configuration
+HISTSIZE=1000
+SAVEHIST=2000
+HISTFILE=~/.zsh_history
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+setopt APPEND_HISTORY
+
+# make less more friendly for non-text input files
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+
+# Alert alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+
+# Load additional aliases if present
+if [ -f ~/.zsh_aliases ]; then
+    . ~/.zsh_aliases
+fi
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+[ -f ~/.config/secrets ] && . ~/.config/secrets
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+
 # export MANPATH="/usr/local/man:$MANPATH"
 
 # You may need to manually set your language environment
