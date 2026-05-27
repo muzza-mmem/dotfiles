@@ -142,7 +142,9 @@ export TMUX_TMPDIR="$HOME/.cache"
 alias v='nvim .'
 alias cld='claude --dangerously-skip-permissions'
 alias cod='codex --dangerously-bypass-approvals-and-sandbox'
-alias z='/home/linuxbrew/.linuxbrew/bin/zoxide'
+
+# zoxide (smarter cd). Defines the `z` and `zi` commands.
+eval "$(zoxide init zsh)"
 
 # Created by `pipx` on 2026-05-27 00:30:42
 export PATH="$PATH:/home/muzzakhan/.local/bin"
