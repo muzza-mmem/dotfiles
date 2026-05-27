@@ -108,6 +108,10 @@ export PATH=$HOME/.tmux/plugins/t-smart-tmux-session-manager/bin:$PATH
 # ~/.config/tmux/plugins
 export PATH=$HOME/.config/tmux/plugins/t-smart-tmux-session-manager/bin:$PATH
 
+# Keep tmux socket off /tmp so systemd-tmpfiles can't sweep it out from under a running server.
+export TMUX_TMPDIR="$HOME/.cache"
+# export TMUX_TMPDIR="$XDG_RUNTIME_DIR"
+
 # export MANPATH="/usr/local/man:$MANPATH"
 
 # You may need to manually set your language environment
@@ -134,3 +138,11 @@ export PATH=$HOME/.config/tmux/plugins/t-smart-tmux-session-manager/bin:$PATH
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
+#
+alias v='nvim .'
+alias cld='claude --dangerously-skip-permissions'
+alias cod='codex --dangerously-bypass-approvals-and-sandbox'
+alias z='/home/linuxbrew/.linuxbrew/bin/zoxide'
+
+# Created by `pipx` on 2026-05-27 00:30:42
+export PATH="$PATH:/home/muzzakhan/.local/bin"

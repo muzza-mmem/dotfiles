@@ -18,7 +18,7 @@ return {
 
   {
     "nvim-tree/nvim-tree.lua",
-    cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeOpen", "NvimTreeFindFileToggle" },
+    cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeOpen", "NvimTreeFindFile", "NvimTreeFindFileToggle" },
     init = function()
       vim.api.nvim_create_autocmd("VimEnter", {
         once = true,
@@ -36,6 +36,18 @@ return {
       opts.hijack_directories = { enable = true, auto_open = true }
       return opts
     end,
+  },
+
+  {
+    "lewis6991/gitsigns.nvim",
+    opts = {
+      current_line_blame = true,
+      current_line_blame_opts = {
+        virt_text = true,
+        virt_text_pos = "eol",
+        delay = 300,
+      },
+    },
   },
 
   -- {
