@@ -1,0 +1,34 @@
+{
+  "env": {
+    "CLAUDE_CODE_DISABLE_MOUSE": "1"
+  },
+  "model": "opus[1m]",
+  "statusLine": {
+    "type": "command",
+    "command": "bash /home/muzzakhan/.claude/statusline-command.sh",
+    "refreshInterval": 5
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
+  },
+  "viewMode": "default",
+  "effortLevel": "medium",
+  "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
+  "editorMode": "vim",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/tmux-pane-title.sh\" session" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/tmux-pane-title.sh\" prompt" } ] }
+    ],
+    "Notification": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/tmux-pane-title.sh\" waiting" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/tmux-pane-title.sh\" idle" } ] }
+    ]
+  }
+}
