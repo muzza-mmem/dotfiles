@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Color codes
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Header in green
+echo -e "${GREEN}IMAGE\t\t\t\t\t\t\tSTATUS${NC}"
+echo -e "${GREEN}==================================================================================${NC}"
+
+# Execute docker ps and extract the desired information
+docker ps --no-trunc --format "{{.Image}}\t{{.Status}}\t{{.Ports}}" | while IFS=$'\t' read -r image status ports; do
+  # Calculate the width of the IMAGE column to create proper spacing for STATUS
+  image_width=50
+  image_padded=$(printf "%-${image_width}.${image_width}s" "$image")
+
+  # First line: Image and Status in yellow
+  echo -e "${YELLOW}${image_padded}\t${status}${NC}"
+
+  # Ports, each on a new line in blue
+  if [ -n "$ports" ]; then
+    # Here we remove any spaces after commas
+    ports=$(echo "$ports" | sed 's/, /,/g')
+    IFS=',' read -ra ADDR <<< "$ports"
+    for port in "${ADDR[@]}"; do
+      # Here we remove any leading whitespace, if present
+      port=$(echo $port | sed 's/^[[:space:]]*//')
+      echo -e "${BLUE}    ${port}${NC}"
+    done
+  fi
+
+  # Separator between containers in yellow
+  echo -e "${YELLOW}----------------------------------------------------------------------------------${NC}"
+done

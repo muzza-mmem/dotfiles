@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# ad-stop — bring down both the autodoc and core stacks.
+#
+# Steps run strictly in order; each must finish before the next begins.
+#   1. Stop portal-autodoc
+#   2. Stop portal-core
+#
+set -euo pipefail
+
+AD_DIR="$HOME/code/portal-autodoc"
+CORE_DIR="$HOME/code/portal-core"
+
+echo "==> Stopping portal-autodoc"
+cd "$AD_DIR"
+./scripts/stop
+
+echo "==> Stopping portal-core"
+cd "$CORE_DIR"
+./scripts/stop
+
+echo "==> Both stacks stopped"

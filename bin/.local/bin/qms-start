@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# qms-start — restart the QMS stack and tail its logs.
+#
+# Steps run strictly in order; each must finish before the next begins.
+#   1. Stop portal-qms
+#   2. Restart portal-core (stop, then start) — skipped with --qms-only
+#   3. Start portal-qms
+#   4. Live-tail the qms-frontend and qms-backend container logs
+#      (skipped with --no-watch)
+#
+set -euo pipefail
+
+WATCH=1
+QMS_ONLY=0
+FULL=0
+for arg in "$@"; do
+	case "$arg" in
+		--no-watch) WATCH=0 ;;
+		--qms-only) QMS_ONLY=1 ;;
+		--full) FULL=1 ;;
+		-h|--help)
+			echo "Usage: qms-start [--no-watch] [--qms-only] [--full]"
+			echo "  --no-watch   restart the stack but do not follow container logs"
+			echo "  --qms-only   restart only portal-qms (skip portal-core restart)"
+			echo "  --full       leave mssql-db running (default stops it)"
+			exit 0
+			;;
+		*)
+			echo "qms-start: unknown argument: $arg" >&2
+			echo "Usage: qms-start [--no-watch] [--qms-only] [--full]" >&2
+			exit 1
+			;;
+	esac
+done
+
+QMS_DIR="$HOME/code/portal-qms"
+CORE_DIR="$HOME/code/portal-core"
+
+echo "==> Stopping portal-qms"
+cd "$QMS_DIR"
+./scripts/stop
+
+if [ "$QMS_ONLY" -eq 0 ]; then
+	echo "==> Restarting portal-core"
+	cd "$CORE_DIR"
+	./scripts/stop
+	./scripts/start 
+
+	if [ "$FULL" -eq 0 ]; then
+		echo "==> Stopping mssql-db"
+		docker stop mssql-db
+	else
+		echo "==> Leaving mssql-db running (--full)"
+	fi
+else
+	echo "==> Skipping portal-core restart (--qms-only)"
+fi
+
+echo "==> Starting portal-qms"
+cd "$QMS_DIR"
+# --force-recreate is forwarded through scripts/start to `docker compose up`
+# so containers are always recreated even when their config is unchanged.
+./scripts/start
+
+if [ "$WATCH" -eq 0 ]; then
+	echo "==> Stack restarted (--no-watch: not following logs)"
+	exit 0
+fi
+
+echo "==> Tailing logs for qms-frontend and qms-backend (Ctrl-C to stop)"
+# Tail both concurrently; killing this script kills both followers.
+trap 'kill 0' EXIT
+docker logs -f qms-frontend &
+docker logs -f qms-backend &
+wait

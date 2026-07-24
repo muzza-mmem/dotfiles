@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# ad-start — restart the autodoc stack and tail its logs.
+#
+# Steps run strictly in order; each must finish before the next begins.
+#   1. Stop portal-autodoc
+#   2. Restart portal-core (stop, then start) — skipped with --ad-only
+#   3. Start portal-autodoc
+#   4. Live-tail the autodoc-frontend and autodoc-backend container logs
+#      (skipped with --no-watch)
+#
+set -euo pipefail
+
+WATCH=1
+AD_ONLY=0
+FULL=0
+for arg in "$@"; do
+	case "$arg" in
+		--no-watch) WATCH=0 ;;
+		--ad-only) AD_ONLY=1 ;;
+		--full) FULL=1 ;;
+		-h|--help)
+			echo "Usage: ad-start [--no-watch] [--ad-only] [--full]"
+			echo "  --no-watch   restart the stack but do not follow container logs"
+			echo "  --ad-only    restart only portal-autodoc (skip portal-core restart)"
+			echo "  --full       leave mssql-db running (default stops it)"
+			exit 0
+			;;
+		*)
+			echo "ad-start: unknown argument: $arg" >&2
+			echo "Usage: ad-start [--no-watch] [--ad-only] [--full]" >&2
+			exit 1
+			;;
+	esac
+done
+
+AD_DIR="$HOME/code/portal-autodoc"
+CORE_DIR="$HOME/code/portal-core"
+
+echo "==> Stopping portal-autodoc"
+cd "$AD_DIR"
+./scripts/stop
+
+if [ "$AD_ONLY" -eq 0 ]; then
+	echo "==> Restarting portal-core"
+	cd "$CORE_DIR"
+	./scripts/stop
+	./scripts/start --force-recreate
+
+	if [ "$FULL" -eq 0 ]; then
+		echo "==> Stopping mssql-db"
+		docker stop mssql-db
+	else
+		echo "==> Leaving mssql-db running (--full)"
+	fi
+else
+	echo "==> Skipping portal-core restart (--ad-only)"
+fi
+
+echo "==> Starting portal-autodoc"
+cd "$AD_DIR"
+# --force-recreate is forwarded through scripts/start to `docker compose up`
+# so containers are always recreated even when their config is unchanged.
+./scripts/start --force-recreate
+
+if [ "$WATCH" -eq 0 ]; then
+	echo "==> Stack restarted (--no-watch: not following logs)"
+	exit 0
+fi
+
+echo "==> Tailing logs for autodoc-frontend and autodoc-backend (Ctrl-C to stop)"
+# Tail both concurrently; killing this script kills both followers.
+trap 'kill 0' EXIT
+docker logs -f autodoc-frontend &
+docker logs -f autodoc-backend &
+wait

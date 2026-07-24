@@ -148,3 +148,6 @@ eval "$(zoxide init zsh)"
 
 # Created by `pipx` on 2026-05-27 00:30:42
 export PATH="$PATH:/home/muzzakhan/.local/bin"
+
+# User scripts (dotfiles bin package)
+export PATH="$HOME/.local/bin:$PATH"

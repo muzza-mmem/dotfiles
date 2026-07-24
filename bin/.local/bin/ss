@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#
+# ss — SSH into a portal environment (dev / test / uat).
+#
+# Checks the VPN connection first (currently a stub), then opens an
+# interactive SSH session to the selected environment. Any extra
+# arguments after the environment are forwarded to ssh.
+#
+#   ss dev                 # ssh into the dev box
+#   ss test -- uptime      # run `uptime` on test, then exit
+#
+set -euo pipefail
+
+usage() {
+	cat <<'EOF'
+Usage: ss <env> [ssh-args...]
+
+Environments:
+  dev    pcportal-dev
+  test   10.64.96.41
+  uat    10.64.96.38
+
+Any arguments after <env> are passed straight through to ssh.
+EOF
+}
+
+# check_vpn — verify the VPN is up before connecting.
+#
+# STUB: always succeeds for now. Replace the body with a real check
+# (e.g. probe the VPN interface or ping an internal-only host) once the
+# details are known.
+check_vpn() {
+	echo "==> Checking VPN connection (stub — assuming connected)"
+	# TODO: implement real VPN detection; return non-zero if not connected.
+	return 0
+}
+
+if [ "$#" -eq 0 ]; then
+	usage >&2
+	exit 1
+fi
+
+env="$1"
+shift
+
+case "$env" in
+	dev)  host="pcportal-dev" ;;
+	test) host="10.64.96.41" ;;
+	uat)  host="10.64.96.38" ;;
+	-h|--help)
+		usage
+		exit 0
+		;;
+	*)
+		echo "ss: unknown environment: $env" >&2
+		usage >&2
+		exit 1
+		;;
+esac
+
+if ! check_vpn; then
+	echo "ss: VPN does not appear to be connected; aborting." >&2
+	exit 1
+fi
+
+echo "==> Connecting to $env ($host)"
+exec ssh "$host" "$@"

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+#
+# docker-cleanup — full cleanup of all Docker containers and images.
+#
+# WARNING: this affects ALL Docker resources, not just the QMS stack.
+#
+# Steps run strictly in order; each must finish before the next begins.
+#   1. Stop all running containers
+#   2. Remove all containers
+#   3. Remove all images
+#   4. Restart the Docker daemon
+#
+set -euo pipefail
+
+ASSUME_YES=0
+for arg in "$@"; do
+	case "$arg" in
+		-y|--yes) ASSUME_YES=1 ;;
+		-h|--help)
+			echo "Usage: docker-cleanup [-y|--yes]"
+			echo "  -y, --yes   skip the confirmation prompt"
+			exit 0
+			;;
+		*)
+			echo "docker-cleanup: unknown argument: $arg" >&2
+			echo "Usage: docker-cleanup [-y|--yes]" >&2
+			exit 1
+			;;
+	esac
+done
+
+if [ "$ASSUME_YES" -eq 0 ]; then
+	echo "This will STOP and REMOVE all Docker containers and images, then restart Docker."
+	read -r -p "Continue? [y/N] " reply
+	case "$reply" in
+		[yY]|[yY][eE][sS]) ;;
+		*) echo "Aborted."; exit 1 ;;
+	esac
+fi
+
+echo "==> Stopping all containers"
+containers="$(docker ps -q)"
+if [ -n "$containers" ]; then
+	docker stop $containers
+else
+	echo "    (none running)"
+fi
+
+echo "==> Removing all containers"
+containers="$(docker ps -aq)"
+if [ -n "$containers" ]; then
+	docker rm $containers
+else
+	echo "    (none to remove)"
+fi
+
+echo "==> Removing all images"
+images="$(docker images -aq)"
+if [ -n "$images" ]; then
+	docker rmi -f $images
+else
+	echo "    (none to remove)"
+fi
+
+echo "==> Restarting Docker"
+sudo systemctl restart docker
+
+echo "==> Docker cleanup complete"
