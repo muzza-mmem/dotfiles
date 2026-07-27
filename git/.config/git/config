@@ -1,0 +1,11 @@
+[user]
+	name = Muzza Khan
+	email = muzza.khan@mmem.com.au
+[credential "https://github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[url "https://github.com/"]
+	insteadOf = git@github.com:

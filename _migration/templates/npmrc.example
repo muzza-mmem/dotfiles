@@ -1,0 +1,7 @@
+# Copy to ~/.npmrc and fill in the token, then: chmod 600 ~/.npmrc
+#
+# The @mmem scope resolves from GitHub Packages, which needs a classic PAT with
+# read:packages. Generate a FRESH one on the new machine — do not carry the old
+# token across. See _migration/MIGRATION.md section 3.
+@mmem:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=

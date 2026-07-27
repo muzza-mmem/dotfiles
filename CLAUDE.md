@@ -16,6 +16,13 @@ dotfiles/
 
 This stows to `~/.config/tmux/tmux.conf`. Only fall back to placing a file directly under `~` if the tool genuinely does not support `XDG_CONFIG_HOME` / `~/.config`.
 
+### `_migration/` is not a Stow package
+
+Every other top-level directory is a Stow package. `_migration/` is the
+exception: it holds the one-shot machine rebuild (`bootstrap.sh`, install
+modules, `MIGRATION.md`). Never run `stow _migration`. The leading underscore
+is there to make that obvious at a glance.
+
 ## Adding configs for a new package
 
 1. Create a directory named after the package (e.g. `tmux/`).

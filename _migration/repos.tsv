@@ -1,0 +1,14 @@
+# name<TAB>remote — cloned into ~/code by _migration/install/80-repos.sh
+# Add a line here and re-run: ./bootstrap.sh 80
+AutoDoc	https://github.com/MMEM/AutoDoc.git
+ai-coding-standards	https://github.com/MMEM/ai-coding-standards.git
+portal-autodoc	https://github.com/MMEM/portal-autodoc.git
+portal-cga	https://github.com/MMEM/portal-cga.git
+portal-core	https://github.com/MMEM/portal-core.git
+portal-fx	https://github.com/MMEM/portal-fx.git
+portal-keycloak	https://github.com/MMEM/portal-keycloak.git
+portal-lti	https://github.com/MMEM/portal-lti.git
+portal-openobserve	https://github.com/MMEM/portal-openobserve.git
+portal-pbb	https://github.com/MMEM/portal-pbb.git
+portal-qms	https://github.com/MMEM/portal-qms.git
+portal-sales	https://github.com/MMEM/portal-sales.git

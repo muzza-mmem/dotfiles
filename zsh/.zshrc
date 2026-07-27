@@ -96,17 +96,16 @@ if [ -f ~/.zsh_aliases ]; then
     . ~/.zsh_aliases
 fi
 
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+# fnm (node version manager) — replaces nvm. Sourcing nvm.sh cost 300-600ms on
+# every shell start; fnm is a static binary doing the same job in ~10ms and
+# still honours .nvmrc. --use-on-cd switches version on directory change.
+export PATH="$HOME/.local/share/fnm:$PATH"
+eval "$(fnm env --use-on-cd --shell zsh)"
 
 [ -f ~/.config/secrets ] && . ~/.config/secrets
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 
-# ~/.tmux/plugins
-export PATH=$HOME/.tmux/plugins/t-smart-tmux-session-manager/bin:$PATH
-# ~/.config/tmux/plugins
-export PATH=$HOME/.config/tmux/plugins/t-smart-tmux-session-manager/bin:$PATH
+# t-smart-tmux-session-manager (installed by tpm under ~/.config/tmux/plugins)
+export PATH="$HOME/.config/tmux/plugins/t-smart-tmux-session-manager/bin:$PATH"
 
 # Keep tmux socket off /tmp so systemd-tmpfiles can't sweep it out from under a running server.
 export TMUX_TMPDIR="$HOME/.cache"
@@ -145,9 +144,6 @@ alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 
 # zoxide (smarter cd). Defines the `z` and `zi` commands.
 eval "$(zoxide init zsh)"
-
-# Created by `pipx` on 2026-05-27 00:30:42
-export PATH="$PATH:/home/muzzakhan/.local/bin"
 
 # User scripts (dotfiles bin package)
 export PATH="$HOME/.local/bin:$PATH"

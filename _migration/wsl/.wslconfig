@@ -1,0 +1,37 @@
+# → C:\Users\<you>\.wslconfig  (installed by _migration/install/90-wsl.sh)
+#
+# Applies to ALL WSL2 distros. Takes effect after `wsl --shutdown`.
+# Tuned for a 32GB host.
+
+[wsl2]
+# Default is 50% of host RAM = 16GB, which is tight for the portal container
+# stack plus a Next build. 20GB leaves Windows 12GB.
+memory=20GB
+
+# OOM insurance; cheap on NVMe.
+swap=8GB
+
+# Survives corporate VPN DNS, which otherwise breaks resolution in the distro.
+dnsTunneling=true
+
+# Chromium runs headless under xvfb here, so WSLg is dead weight.
+guiApplications=false
+
+# The VHD otherwise only ever grows — this lets freed space be reclaimed.
+sparseVhd=true
+
+# --- Deliberate omissions ------------------------------------------------
+#
+# processors: omitted on purpose. Defaults to all logical cores, which is what
+#   we want, and hardcoding it would be wrong on a machine with a different
+#   core count.
+#
+# autoMemoryReclaim: deliberately NOT set. It hands "free" pages back to
+#   Windows, but that includes the page cache holding node_modules and docker
+#   layers. Worth the trade on a 16GB box; on 32GB it buys back RAM we do not
+#   need at the cost of rebuild latency.
+#
+# networkingMode=mirrored: left commented out. It is the best option for
+#   host<->container networking, but still has rough edges with published
+#   ports. Enable deliberately, later, not during a rebuild.
+# networkingMode=mirrored
