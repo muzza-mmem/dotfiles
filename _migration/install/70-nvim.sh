@@ -48,6 +48,16 @@ else
 	ok "installed $(/usr/local/bin/nvim --version | head -1)"
 fi
 
+# Call the binary by path, not via PATH: a bare `nvim` here would exit 127 if
+# /usr/local/bin/nvim were missing, and the old `|| true` swallowed that into a
+# silent no-op sync. A missing binary is now fatal; only plugin-sync noise is
+# tolerated.
+NVIM_BIN="$NVIM_PREFIX/bin/nvim"
+[[ -x $NVIM_BIN ]] || die "$NVIM_BIN missing or not executable after install"
+
 log "syncing plugins (first launch would otherwise do this interactively)"
-nvim --headless "+Lazy! sync" +qa 2>&1 | tail -20 || true
-ok "nvim plugins synced"
+if "$NVIM_BIN" --headless "+Lazy! sync" +qa 2>&1 | tail -20; then
+	ok "nvim plugins synced"
+else
+	warn "Lazy! sync reported errors — check with: $NVIM_BIN +Lazy"
+fi

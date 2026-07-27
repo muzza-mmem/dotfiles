@@ -36,6 +36,24 @@ Every module is idempotent — re-running the whole thing on a healthy box is a
 no-op. Completion markers live in `~/.local/state/dotfiles-bootstrap/`; delete
 one to force that module to re-run.
 
+### The first smoke test is expected to fail ~7 checks
+
+`bootstrap.sh` runs `smoke-test.sh` in the same session that just did the
+install, so several checks cannot pass yet. **A perfect first run still reports
+roughly seven failures.** They are:
+
+| Check | Why it fails on a first run |
+|---|---|
+| `fnm`, `node`, `npm` not on PATH | `20-node.sh` exported them in its own process; the smoke test is a separate one. A new shell picks them up. |
+| `docker daemon reachable`, `hello-world runs` | The `docker` group change only applies to a new session (and systemd needs `/etc/wsl.conf` applied). |
+| `exists: ~/.ssh/id_ed25519` | Keys are carried by hand — MIGRATION.md section 2. |
+| `npmrc has a token` | `~/.npmrc` was seeded from a template with the token deliberately blank. |
+
+After `wsl --shutdown` from Windows, reopening the distro, and doing the
+re-auth / secrets follow-ups `bootstrap.sh` prints, run `./_migration/smoke-test.sh`
+again — that run should come back clean. Nothing in the checks is relaxed to
+make the first run look tidy.
+
 ## Modules
 
 | Module | Does |
@@ -93,6 +111,14 @@ not from inside a tmux session.
 The release asset name changed. List real names with
 `curl -fsSL https://api.github.com/repos/neovim/neovim/releases/tags/stable | jq -r '.assets[].name'`
 and update the URL in the module.
+
+**`90-wsl.sh` dies on the `[user] default` in wsl.conf**
+`wsl/wsl.conf` names the account WSL logs in as, and it is committed with a
+literal username. If the fresh distro's first user is named something else the
+module refuses to install the file — installing it would leave a distro that
+cannot open a session after `wsl --shutdown` (recovery: `wsl -u root -d
+<distro>` from Windows). Edit the `default =` line in `_migration/wsl/wsl.conf`
+to your username and re-run `./bootstrap.sh 90`.
 
 **Stow refuses to link a file**
 A real file is in the way. `50-stow.sh` moves conflicts to `<file>.pre-stow`

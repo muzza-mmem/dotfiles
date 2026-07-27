@@ -52,7 +52,14 @@ install_pipx_apps() {
 		return 0
 	fi
 	have pipx || die "pipx not installed — run 00-apt.sh first"
-	pipx ensurepath >/dev/null 2>&1 || true
+	# `pipx ensurepath` appends an export line to ~/.zshrc — which by now is a
+	# symlink into this repo, so it would re-add the exact duplicate PATH line
+	# this migration removed from zsh/.zshrc. Skip it when ~/.local/bin is
+	# already on PATH (zsh/.zshrc and Ubuntu's ~/.profile both put it there).
+	case ":$PATH:" in
+	*":$HOME/.local/bin:"*) ok "pipx: ~/.local/bin already on PATH" ;;
+	*) pipx ensurepath >/dev/null 2>&1 || true ;;
+	esac
 	local installed app
 	installed=$(pipx list --short 2>/dev/null || true)
 	for app in "${PIPX_APPS[@]}"; do

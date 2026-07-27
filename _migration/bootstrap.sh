@@ -82,6 +82,16 @@ done
 ((ran == 0)) && ok "nothing to do"
 
 heading "Verification"
+cat <<'EOF'
+  Expected to FAIL on a first run (see README.md "The first smoke test is
+  expected to fail ~7 checks"):
+    - fnm / node / npm      not on PATH until a new shell
+    - docker checks         group change needs a new session
+    - ~/.ssh/id_ed25519     restored by hand (MIGRATION.md section 2)
+    - npmrc has a token     seeded blank from the template on purpose
+  Re-run ./_migration/smoke-test.sh after `wsl --shutdown` + the follow-ups
+  below; it should then be clean.
+EOF
 bash "$SCRIPT_DIR/smoke-test.sh" || warn "smoke test reported problems (see above)"
 
 heading "Manual follow-ups"

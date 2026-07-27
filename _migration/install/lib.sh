@@ -35,9 +35,22 @@ heading() { printf '\n%s%s%s\n' "$C_BOLD" "$*" "$C_RESET"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Packages the rest of the bootstrap cannot proceed without: a failure on any
+# of these is fatal. Everything else (fonts, Chromium's libs, nice-to-haves) is
+# reported and skipped, because several noble package names here are best-guess
+# renames from 22.04 and one wrong name must not abort the whole rebuild.
+# shellcheck disable=SC2034 # read by apt_install below
+APT_ESSENTIAL=(
+	ca-certificates curl git gh zsh tmux stow build-essential jq
+)
+
 # apt_install <pkg>... — install only the packages not already present.
+#
+# A single apt-get call is tried first (fast, resolves as one transaction). If
+# that fails — usually one unknown package name taking the whole batch with it
+# — each package is retried on its own so a bad name costs only that package.
 apt_install() {
-	local pkg missing=()
+	local pkg missing=() failed=() fatal=()
 	for pkg in "$@"; do
 		if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'ok installed'; then
 			missing+=("$pkg")
@@ -52,7 +65,27 @@ apt_install() {
 		ok "apt: DRY_RUN, skipped"
 		return 0
 	fi
-	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+	if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"; then
+		return 0
+	fi
+
+	warn "apt: batch install failed — retrying one package at a time"
+	for pkg in "${missing[@]}"; do
+		if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg"; then
+			continue
+		fi
+		failed+=("$pkg")
+		if [[ " ${APT_ESSENTIAL[*]} " == *" $pkg "* ]]; then
+			fatal+=("$pkg")
+		fi
+	done
+
+	((${#failed[@]} == 0)) && return 0
+	warn "apt: could not install: ${failed[*]}"
+	((${#fatal[@]} == 0)) || die "essential package(s) unavailable: ${fatal[*]}
+Fix the name or the apt sources, then re-run this module."
+	warn "apt: continuing without the above (non-essential)"
+	return 0
 }
 
 step_done() { [[ -f "$STATE_DIR/$1" ]]; }
@@ -63,17 +96,35 @@ mark_step_done() {
 	: >"$STATE_DIR/$1"
 }
 
-# backup_file <path> [suffix] — move a real file/dir aside. Symlinks and
-# missing paths are left alone (a symlink is assumed to be ours already).
+# backup_file <path> [suffix] — move a real file/dir aside. Symlinks, missing
+# paths, and anything that resolves inside this repo are left alone.
+#
+# The repo check is not cosmetic. `stow` FOLDS a package whose target directory
+# does not pre-exist: ~/.config/nvim becomes a single symlink into
+# <repo>/nvim/.config/nvim. A path like ~/.config/nvim/init.lua then resolves
+# THROUGH that symlink to the repo's own file — `-e` true, `-L` false — so a
+# naive backup would rename <repo>/nvim/.config/nvim/init.lua to
+# init.lua.pre-stow and gut the config on the next `stow --restow`.
+#
+# The backup name is never reused, so an older .pre-stow can't be clobbered.
 backup_file() {
-	local f="$1" suffix="${2:-.pre-stow}"
+	local f="$1" suffix="${2:-.pre-stow}" resolved dest n
+	resolved=$(readlink -f -- "$f" 2>/dev/null) || resolved=''
+	if [[ -n $resolved && $resolved == "$REPO_ROOT"/* ]]; then
+		return 0 # our own tracked file, reached through a folded symlink
+	fi
 	[[ -e $f && ! -L $f ]] || return 0
+	dest="${f}${suffix}"
+	n=1
+	while [[ -e $dest || -L $dest ]]; do
+		dest="${f}${suffix}.$((n++))"
+	done
 	if [[ $DRY_RUN == 1 ]]; then
-		warn "would back up $f -> ${f}${suffix}"
+		warn "would back up $f -> $dest"
 		return 0
 	fi
-	warn "backing up $f -> ${f}${suffix}"
-	mv -- "$f" "${f}${suffix}"
+	warn "backing up $f -> $dest"
+	mv -n -- "$f" "$dest"
 }
 
 # win_home — the Windows user profile as a WSL path. cmd.exe must be invoked

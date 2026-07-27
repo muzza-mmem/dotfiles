@@ -1,2 +1,22 @@
 /nvim/.config/nvim/lazy-lock.json
 /tmux/.config/tmux/plugins
+
+# --- Claude Code runtime state -------------------------------------------
+# If ~/.claude is ever a folded Stow symlink into this repo (see REAL_DIRS in
+# _migration/install/50-stow.sh, which prevents that), Claude Code writes its
+# live state here: .credentials.json (an OAuth token), history.jsonl, session
+# transcripts, caches, logs, installed plugins. None of that may be committed.
+#
+# Belt: the credential, named explicitly so it is impossible to miss.
+/claude/.claude/.credentials.json
+#
+# Braces: ignore everything under the package and re-admit only the files the
+# package genuinely owns. Anything new Claude Code writes is ignored by
+# default; a new config file we want tracked needs a `!` line added below.
+/claude/.claude/*
+!/claude/.claude/CLAUDE.md
+!/claude/.claude/settings.json
+!/claude/.claude/keybindings.json
+!/claude/.claude/statusline-command.sh
+!/claude/.claude/hooks/
+!/claude/.claude/skills/

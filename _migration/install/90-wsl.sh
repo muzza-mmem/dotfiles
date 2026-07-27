@@ -11,6 +11,10 @@
 # %USERNAME%=SYSTEM) — in that case win_home() refuses to guess. Set WIN_HOME
 # to override, e.g.: WIN_HOME=/mnt/c/Users/<you> ./bootstrap.sh 90
 #
+# The [user] default in wsl/wsl.conf is validated against this distro's accounts
+# first: installing a wsl.conf that names a nonexistent user locks you out of
+# the distro after the shutdown, so that case dies loudly instead.
+#
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -20,6 +24,40 @@ SRC_WSLCONFIG="$MIGRATION_DIR/wsl/.wslconfig"
 
 [[ -f $SRC_WSL_CONF ]] || die "missing $SRC_WSL_CONF"
 [[ -f $SRC_WSLCONFIG ]] || die "missing $SRC_WSLCONFIG"
+
+# --- validate [user] default --------------------------------------------
+#
+# wsl.conf names the account WSL logs in as. If that account does not exist on
+# THIS distro, the next `wsl --shutdown` leaves a distro that cannot open a
+# session at all — recovery needs `wsl -u root` from Windows. So the name is
+# checked against the local passwd database before the file is installed.
+wsl_conf_default_user() {
+	awk '
+		/^[[:space:]]*\[/ { in_user = ($0 ~ /^[[:space:]]*\[user\]/); next }
+		in_user && /^[[:space:]]*default[[:space:]]*=/ {
+			sub(/^[^=]*=[[:space:]]*/, ""); sub(/[[:space:]]*(#.*)?$/, "")
+			print
+		}
+	' "$SRC_WSL_CONF" | tail -1
+}
+
+conf_user="$(wsl_conf_default_user)"
+if [[ -z $conf_user ]]; then
+	ok "wsl.conf sets no [user] default — WSL will pick the first account"
+elif id -u -- "$conf_user" >/dev/null 2>&1; then
+	ok "wsl.conf [user] default '$conf_user' exists on this distro"
+else
+	die "wsl.conf would set [user] default = '$conf_user', which does not exist
+on this distro. Installing it and running \`wsl --shutdown\` would lock you out
+of the distro (recovery: \`wsl -u root -d <distro>\` from Windows).
+
+Fix: edit $SRC_WSL_CONF and set
+
+    [user]
+    default = ${USER:-$(id -un)}
+
+then re-run: ./bootstrap.sh 90"
+fi
 
 # --- /etc/wsl.conf -------------------------------------------------------
 if [[ $DRY_RUN == 1 ]]; then

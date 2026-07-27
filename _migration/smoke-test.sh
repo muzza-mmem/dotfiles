@@ -58,7 +58,12 @@ for c in zsh tmux nvim git gh stow fnm node npm docker lazygit fzf zoxide rg fd 
 done
 
 heading "Stowed config"
-for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.config/nvim" "$HOME/.config/tmux" \
+# Config DIRECTORIES are deliberately real directories, not folded Stow
+# symlinks (see REAL_DIRS in install/50-stow.sh), so the per-directory probe
+# targets a file the package owns inside it. That is the stronger assertion
+# anyway: it fails both when nothing is linked and when stow folded the parent.
+for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.config/nvim/init.lua" \
+	"$HOME/.config/tmux/tmux.conf" \
 	"$HOME/.config/git/config" "$HOME/.claude/settings.json" "$HOME/.local/bin/ss"; do
 	check "symlink into repo: ${p/#$HOME/\~}" is_symlink_into_repo "$p"
 done
