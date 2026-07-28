@@ -20,3 +20,6 @@
 !/claude/.claude/statusline-command.sh
 !/claude/.claude/hooks/
 !/claude/.claude/skills/
+
+# Virtualenvs created by harness-installed skills (never commit these)
+/claude/.claude/skills/*/.venv/
