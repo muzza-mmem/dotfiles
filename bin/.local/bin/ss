@@ -1,26 +1,46 @@
 #!/usr/bin/env bash
 #
-# ss — SSH into a portal environment (dev / test / uat).
+# ss - SSH into a portal environment (dev / test / uat).
 #
-# Checks the VPN connection first (currently a stub), then opens an
-# interactive SSH session to the selected environment. Any extra
-# arguments after the environment are forwarded to ssh.
+# Checks the VPN connection first (currently a stub), then either opens an
+# interactive SSH session or runs a one-shot command on the remote host and
+# exits.
 #
-#   ss dev                 # ssh into the dev box
-#   ss test -- uptime      # run `uptime` on test, then exit
+#   ss dev                        # interactive shell on the dev box
+#   ss test uptime                # run `uptime` on test, print output, exit
+#   ss uat -- df -h /var          # everything after -- is the remote command
+#   ss dev -c 'cd /srv && ls -l'  # quoted command string (shell metachars OK)
+#   ss test -t htop               # force a pty for full-screen/interactive tools
 #
 set -euo pipefail
 
 usage() {
 	cat <<'EOF'
-Usage: ss <env> [ssh-args...]
+Usage: ss <env> [options] [command...]
 
 Environments:
   dev    pcportal-dev
   test   10.64.96.41
   uat    10.64.96.38
 
-Any arguments after <env> are passed straight through to ssh.
+Options:
+  -c, --command <str>  Run <str> on the remote host via its login shell.
+  -t, --tty            Force pty allocation (needed for full-screen tools).
+  -T, --no-tty         Never allocate a pty.
+  -h, --help           Show this help.
+
+With no command, an interactive shell is opened. Otherwise the command runs
+non-interactively, its output is streamed back, and ss exits with the
+command's exit status.
+
+Anything after `--` is treated as the remote command, not as ss options.
+
+The command is passed to the remote login shell verbatim (as plain ssh does),
+so pipes, redirections and globs are evaluated on the remote host, not here.
+Quote locally to stop your own shell expanding them first. Notes:
+
+  * sudo prompting for a password needs a pty: use -t.
+  * `**` needs globstar on the remote shell; use `find` for recursive matching.
 EOF
 }
 
@@ -30,7 +50,7 @@ EOF
 # (e.g. probe the VPN interface or ping an internal-only host) once the
 # details are known.
 check_vpn() {
-	echo "==> Checking VPN connection (stub — assuming connected)"
+	echo "==> Checking VPN connection (stub - assuming connected)" >&2
 	# TODO: implement real VPN detection; return non-zero if not connected.
 	return 0
 }
@@ -58,10 +78,61 @@ case "$env" in
 		;;
 esac
 
+command_str=""
+tty_mode="auto"
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		-c|--command)
+			if [ "$#" -lt 2 ]; then
+				echo "ss: $1 requires an argument" >&2
+				exit 1
+			fi
+			command_str="$2"
+			shift 2
+			;;
+		-t|--tty)   tty_mode="force"; shift ;;
+		-T|--no-tty) tty_mode="none"; shift ;;
+		-h|--help)  usage; exit 0 ;;
+		--)
+			shift
+			break
+			;;
+		*)
+			# First non-option word starts the remote command.
+			break
+			;;
+	esac
+done
+
+# Remaining positional args form the remote command. Join them with spaces and
+# hand the result to the remote shell verbatim, exactly as plain ssh does, so
+# pipes, redirections and globs are interpreted on the remote host.
+if [ "$#" -gt 0 ]; then
+	if [ -n "$command_str" ]; then
+		echo "ss: cannot combine --command with trailing command arguments" >&2
+		exit 1
+	fi
+	command_str="$*"
+fi
+
+ssh_opts=()
+case "$tty_mode" in
+	force) ssh_opts+=(-t -t) ;;
+	none)  ssh_opts+=(-T) ;;
+esac
+
 if ! check_vpn; then
 	echo "ss: VPN does not appear to be connected; aborting." >&2
 	exit 1
 fi
 
-echo "==> Connecting to $env ($host)"
-exec ssh "$host" "$@"
+if [ -z "$command_str" ]; then
+	echo "==> Connecting to $env ($host)" >&2
+	exec ssh "${ssh_opts[@]}" "$host"
+fi
+
+# Non-interactive: run through a login shell so PATH and profile-provided
+# environment (nvm, custom bin dirs, etc.) are available to the command.
+echo "==> Running on $env ($host): $command_str" >&2
+exec ssh "${ssh_opts[@]}" "$host" "bash -lc $(printf '%q' "$command_str")"
