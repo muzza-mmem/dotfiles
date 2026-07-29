@@ -2,10 +2,16 @@
 #
 # 40-tools.sh — the handful of tools that are not in apt.
 #
-# lazygit ships tarballs (not .deb) for Linux, so we pull the release archive
+# lazygit and zoxide ship tarballs for Linux, so we pull the release archive
 # and install the single binary. The release tag is resolved dynamically via
 # the GitHub API + jq, the same pattern 20-node.sh uses for fnm. pipx apps
 # come from PyPI.
+#
+# zoxide also publishes a .deb, but apt's zoxide is stale and mixing a
+# hand-fetched .deb into apt's database is worse than dropping the static musl
+# binary next to lazygit. zsh/.zshrc runs `zoxide init zsh`, so a missing
+# binary breaks every shell start — it belongs in the bootstrap, not in
+# whatever ad-hoc install put it there the first time.
 #
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -46,6 +52,39 @@ install_lazygit() {
 	ok "lazygit $(lazygit --version 2>/dev/null | head -1)"
 }
 
+install_zoxide() {
+	if have zoxide; then
+		ok "zoxide already installed ($(zoxide --version 2>/dev/null | head -1))"
+		return 0
+	fi
+	if [[ $DRY_RUN == 1 ]]; then
+		warn "would install zoxide to /usr/local/bin"
+		return 0
+	fi
+	local tag ver tmp url
+	log "resolving latest zoxide release tag"
+	tag=$(curl -fsSL https://api.github.com/repos/ajeetdsouza/zoxide/releases/latest | jq -r .tag_name)
+	[[ -n $tag && $tag != null ]] || die "could not resolve the latest zoxide release"
+	ver="${tag#v}"
+	ok "latest zoxide release: $tag"
+
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT
+	url="https://github.com/ajeetdsouza/zoxide/releases/download/${tag}/zoxide-${ver}-x86_64-unknown-linux-musl.tar.gz"
+
+	log "downloading $url"
+	curl -fsSL -o "$tmp/zoxide.tar.gz" "$url" || die "failed to download zoxide release asset: $url"
+
+	log "installing zoxide $ver"
+	tar -xzf "$tmp/zoxide.tar.gz" -C "$tmp" zoxide || die "failed to extract zoxide release asset"
+	[[ -f "$tmp/zoxide" ]] || die "zoxide binary missing from release asset"
+	sudo install -m 0755 "$tmp/zoxide" /usr/local/bin/zoxide
+
+	rm -rf "$tmp"
+	trap - EXIT
+	ok "zoxide $(zoxide --version 2>/dev/null | head -1)"
+}
+
 install_pipx_apps() {
 	if [[ $DRY_RUN == 1 ]]; then
 		warn "would pipx install: ${PIPX_APPS[*]}"
@@ -73,4 +112,5 @@ install_pipx_apps() {
 }
 
 install_lazygit
+install_zoxide
 install_pipx_apps
