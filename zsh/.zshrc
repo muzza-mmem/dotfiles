@@ -143,7 +143,7 @@ alias cld='claude --dangerously-skip-permissions'
 alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 
 # zoxide (smarter cd). Defines the `z` and `zi` commands.
-eval "$(zoxide init zsh)"
+# eval "$(zoxide init zsh)"
 
 # User scripts (dotfiles bin package)
 export PATH="$HOME/.local/bin:$PATH"
