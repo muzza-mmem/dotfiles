@@ -147,3 +147,10 @@ alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 
 # User scripts (dotfiles bin package)
 export PATH="$HOME/.local/bin:$PATH"
+
+# 1Password CLI — the Windows binary, so the desktop-app integration (Windows
+# Hello) can authenticate; SSO accounts have no password/Secret-Key CLI flow,
+# and the Linux op in WSL can't reach the Windows app.
+# Requires the terminal to run as mml-int\muzza.khan (the user the app runs as).
+# Caveat: it's a Windows binary — file paths passed to it must be Windows paths.
+alias op='/mnt/c/Users/muzza.khan/bin/op.exe'
