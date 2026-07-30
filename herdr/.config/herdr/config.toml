@@ -1,0 +1,110 @@
+# herdr — agent multiplexer (https://herdr.dev)
+#
+# Mirrors ~/.config/tmux/tmux.conf as closely as herdr allows, so the muscle
+# memory carries over: same C-b prefix, same Catppuccin Mocha palette, same
+# split/navigation/reload keys. Where herdr has no equivalent for a tmux
+# binding it is called out inline rather than silently dropped.
+#
+# Print the annotated upstream defaults with `herdr --default-config`.
+# Apply edits to a running server with `herdr server reload-config`.
+
+onboarding = false
+
+# ── Theme: Catppuccin Mocha, mauve accent ───────────────────────────
+# tmux: @catppuccin_flavour 'mocha' + pane-active-border-style fg=#cba6f7
+[theme]
+name = "catppuccin"
+
+[terminal]
+# tmux: every split/new-window is `-c "#{pane_current_path}"`
+new_cwd = "follow"
+
+[update]
+channel = "stable"
+
+# ── Keys ────────────────────────────────────────────────────────────
+# herdr tabs ≈ tmux windows; herdr workspaces ≈ tmux sessions.
+[keys]
+# tmux: set -g prefix C-b
+prefix = "ctrl+b"
+
+# tmux: bind r source-file … (herdr's default prefix+r is resize_mode, so the
+# two swap places to keep `r` on reload).
+reload_config = "prefix+r"
+resize_mode = "prefix+shift+r"
+
+# tmux: bind v split-window -h (side by side) / bind - split-window -v (stacked).
+# herdr allows one key per action, so `|` and `h` from tmux.conf have no
+# counterpart — `v` and `-` are the ones kept.
+split_vertical = "prefix+v"
+split_horizontal = "prefix+minus"
+
+# tmux: bind Left/Down/Up/Right select-pane -L/-D/-U/-R
+focus_pane_left = "prefix+left"
+focus_pane_down = "prefix+down"
+focus_pane_up = "prefix+up"
+focus_pane_right = "prefix+right"
+cycle_pane_next = "prefix+tab"
+cycle_pane_previous = "prefix+shift+tab"
+
+# tmux: bind-key x kill-pane (no confirmation prompt)
+close_pane = "prefix+x"
+zoom = "prefix+z"
+
+# tmux windows → herdr tabs. `bind -n S-Left/S-Right` are replicated as direct
+# (prefix-less) chords; prefix+1..9 stays as the reliable fallback if the
+# terminal swallows shift+arrow.
+new_tab = "prefix+c"
+previous_tab = "shift+left"
+next_tab = "shift+right"
+switch_tab = "prefix+1..9"
+rename_tab = "prefix+comma"
+close_tab = "prefix+shift+x"
+
+# tmux default detach is prefix+d (herdr ships prefix+q).
+detach = "prefix+d"
+
+# Workspaces (≈ tmux sessions). tmux's ` toggles to the last-used session;
+# herdr has no MRU switch, so the picker takes that slot.
+workspace_picker = "prefix+w"
+new_workspace = "prefix+shift+n"
+previous_workspace = "prefix+shift+left"
+next_workspace = "prefix+shift+right"
+
+toggle_sidebar = "prefix+b"
+
+# Navigate mode keeps vi movement, matching `setw -g mode-keys vi`.
+navigate_pane_left = "h"
+navigate_pane_down = "j"
+navigate_pane_up = "k"
+navigate_pane_right = "l"
+
+# No herdr equivalent for these tmux bindings:
+#   bind = select-layout even-horizontal   (herdr has resize mode only)
+#   bind V/H move-pane, bind {/} swap-pane, bind o rotate-window
+#   bind -n C-S-Left/Right swap-window     (tabs cannot be reordered by key)
+
+[ui]
+# tmux: set -g mouse on
+mouse_capture = true
+copy_on_select = true
+
+# tmux: pane-border-status top with a per-pane title
+pane_borders = true
+show_agent_labels_on_pane_borders = true
+
+# Catppuccin Mocha mauve — tmux pane-active-border-style.
+accent = "#cba6f7"
+
+# tmux's new-window is instant (automatic-rename fills the name in).
+prompt_new_tab_name = false
+
+[ui.toast]
+delivery = "herdr"
+
+[ui.sound]
+enabled = true
+
+[advanced]
+# tmux: set -g history-limit 50000 (herdr caps by bytes, not lines).
+scrollback_limit_bytes = 10000000

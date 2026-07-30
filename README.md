@@ -37,6 +37,7 @@ dotfiles/
 | `bin` | `~/.local/bin/` helper scripts |
 | `claude` | `~/.claude/` settings, hooks, skills |
 | `git` | `~/.config/git/config` |
+| `herdr` | `~/.config/herdr/config.toml` |
 | `nvim` | `~/.config/nvim/` (NvChad) |
 | `tmux` | `~/.config/tmux/` |
 | `zsh` | `~/.zshrc` |

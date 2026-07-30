@@ -62,7 +62,7 @@ make the first run look tidy.
 | `10-shell.sh` | oh-my-zsh, zsh as login shell |
 | `20-node.sh` | fnm, node 24, npm globals |
 | `30-docker.sh` | Docker CE, `daemon.json`, docker group |
-| `40-tools.sh` | lazygit, zoxide, pipx apps |
+| `40-tools.sh` | lazygit, zoxide, herdr, pipx apps |
 | `50-stow.sh` | Stow every package, seed secret templates |
 | `60-tmux.sh` | tpm + plugins |
 | `70-nvim.sh` | Neovim from upstream tarball, `Lazy! sync` |

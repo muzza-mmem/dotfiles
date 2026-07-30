@@ -13,7 +13,7 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-PACKAGES=(bash bin claude git nvim tmux zsh)
+PACKAGES=(bash bin claude git herdr nvim tmux zsh)
 
 # Directories that must exist as REAL directories before stow runs.
 #
@@ -27,7 +27,8 @@ PACKAGES=(bash bin claude git nvim tmux zsh)
 # Per package: bash and zsh drop files straight into $HOME (nothing to fold);
 # bin owns ~/.local/bin, where pipx and the fdfind shim install binaries;
 # claude is the dangerous one above; git's dir is where `git config --global`
-# writes; nvim's is where lazy.nvim writes lazy-lock.json; tmux's plugins dir
+# writes; herdr's holds its server socket (herdr.sock) and is rewritten by its
+# in-app settings screen; nvim's is where lazy.nvim writes lazy-lock.json; tmux's plugins dir
 # is where tpm clones whole plugin git repos.
 REAL_DIRS=(
 	"$HOME/.config"
@@ -36,6 +37,7 @@ REAL_DIRS=(
 	"$HOME/.claude/hooks"
 	"$HOME/.claude/skills"
 	"$HOME/.config/git"
+	"$HOME/.config/herdr"
 	"$HOME/.config/nvim"
 	"$HOME/.config/tmux"
 	"$HOME/.config/tmux/plugins"

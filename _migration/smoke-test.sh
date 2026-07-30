@@ -53,7 +53,7 @@ is_symlink_into_repo() { # is_symlink_into_repo <path>
 }
 
 heading "Commands on PATH"
-for c in zsh tmux nvim git gh stow fnm node npm docker lazygit fzf zoxide rg fd jq pipx; do
+for c in zsh tmux nvim git gh stow fnm node npm docker lazygit herdr fzf zoxide rg fd jq pipx; do
 	check_version "$c"
 done
 
@@ -63,7 +63,7 @@ heading "Stowed config"
 # targets a file the package owns inside it. That is the stronger assertion
 # anyway: it fails both when nothing is linked and when stow folded the parent.
 for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.config/nvim/init.lua" \
-	"$HOME/.config/tmux/tmux.conf" \
+	"$HOME/.config/tmux/tmux.conf" "$HOME/.config/herdr/config.toml" \
 	"$HOME/.config/git/config" "$HOME/.claude/settings.json" "$HOME/.local/bin/ss"; do
 	check "symlink into repo: ${p/#$HOME/\~}" is_symlink_into_repo "$p"
 done

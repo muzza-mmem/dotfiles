@@ -13,6 +13,9 @@
 # binary breaks every shell start — it belongs in the bootstrap, not in
 # whatever ad-hoc install put it there the first time.
 #
+# herdr has no tarball worth unpacking by hand: its installer picks the right
+# release asset and installs to ~/.local/bin, so we shell out to it.
+#
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -85,6 +88,24 @@ install_zoxide() {
 	ok "zoxide $(zoxide --version 2>/dev/null | head -1)"
 }
 
+install_herdr() {
+	if have herdr; then
+		ok "herdr already installed ($(herdr --version 2>/dev/null | head -1))"
+		return 0
+	fi
+	if [[ $DRY_RUN == 1 ]]; then
+		warn "would install herdr to ~/.local/bin"
+		return 0
+	fi
+	# herdr's own installer resolves the latest release and drops the single
+	# static binary in ~/.local/bin — no sudo, no apt entry, and it is the
+	# only supported install path on Linux besides brew/nix/cargo.
+	log "installing herdr"
+	curl -fsSL https://herdr.dev/install.sh | sh || die "herdr installer failed"
+	have herdr || die "herdr not on PATH after install (~/.local/bin)"
+	ok "herdr $(herdr --version 2>/dev/null | head -1)"
+}
+
 install_pipx_apps() {
 	if [[ $DRY_RUN == 1 ]]; then
 		warn "would pipx install: ${PIPX_APPS[*]}"
@@ -113,4 +134,5 @@ install_pipx_apps() {
 
 install_lazygit
 install_zoxide
+install_herdr
 install_pipx_apps
