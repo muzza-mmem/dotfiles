@@ -1,0 +1,22 @@
+# herdr-plus project template: the dotfiles repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open dotfiles`.
+
+name = "dotfiles"
+description = "Stow-managed dotfiles (~/dotfiles)"
+working_dir = "~/dotfiles"
+
+[[tabs]]
+name = "claude"
+command = "claude"
+
+[[tabs]]
+name = "nvim"
+command = "nvim"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

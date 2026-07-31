@@ -84,6 +84,30 @@ navigate_pane_right = "l"
 #   bind V/H move-pane, bind {/} swap-pane, bind o rotate-window
 #   bind -n C-S-Left/Right swap-window     (tabs cannot be reordered by key)
 
+# ── Plugin actions: cloudmanic.herdr-plus ───────────────────────────
+# Installed with `herdr plugin install cloudmanic/herdr-plus`. Projects are
+# declarative workspace templates (every tab, pane and startup command) that
+# fill the gap left by herdr having no tmux-style automatic-rename: tabs get
+# their names from the template instead of from the running command.
+#
+# Templates live in herdr's managed plugin config dir, NOT in this repo:
+#   herdr plugin config-dir cloudmanic.herdr-plus
+#   → ~/.config/herdr/plugins/config/cloudmanic.herdr-plus/{projects,quick-actions,worktrees}
+#
+# `p` is free because previous_tab is remapped to shift+left above (herdr's
+# default for previous_tab is prefix+p).
+[[keys.command]]
+key = "prefix+p"
+type = "plugin_action"
+command = "cloudmanic.herdr-plus.projects"
+description = "herdr-plus: projects"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "cloudmanic.herdr-plus.quick-actions"
+description = "herdr-plus: quick actions"
+
 [ui]
 # tmux: set -g mouse on
 mouse_capture = true
@@ -99,6 +123,7 @@ accent = "#cba6f7"
 # tmux's new-window is instant (automatic-rename fills the name in).
 prompt_new_tab_name = false
 
+agent_panel_sort = "spaces"
 [ui.toast]
 delivery = "herdr"
 
