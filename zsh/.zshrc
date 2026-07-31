@@ -154,3 +154,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # Requires the terminal to run as mml-int\muzza.khan (the user the app runs as).
 # Caveat: it's a Windows binary — file paths passed to it must be Windows paths.
 alias op='/mnt/c/Users/muzza.khan/bin/op.exe'
+
+# OP_CLI is the same binary as the alias above, exported for programs that spawn
+# `op` themselves. An alias is a shell construct and is invisible to execFile, so
+# ./scripts/vault (and anything else using the 1Password CLI non-interactively)
+# needs the path in the environment rather than as an alias.
+export OP_CLI='/mnt/c/Users/muzza.khan/bin/op.exe'
