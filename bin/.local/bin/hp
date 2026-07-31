@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+#
+# hp — open a herdr-plus project, attaching to it when it is already open.
+#
+# herdr-plus always builds a project's workspace from its template, so picking a
+# project a second time leaves you with a duplicate workspace and a duplicate set
+# of tabs. This wraps that: when a workspace already carries the project's name we
+# simply focus it and leave its tabs exactly as they are — nothing is created from
+# the template. Only a project with no workspace is opened through herdr-plus.
+#
+#   hp             fuzzy-pick a project (already-open ones marked)
+#   hp <name>      open, or attach to, one project by name
+#   hp --list      print every project, its directory, and its workspace id
+#
+set -euo pipefail
+
+PLUGIN_ID="cloudmanic.herdr-plus"
+
+die() {
+	printf 'hp: %s\n' "$*" >&2
+	exit 1
+}
+
+# The projects directory herdr manages for the plugin. Ask herdr for it rather
+# than rebuilding its directory layout here, falling back to the documented
+# default when herdr cannot answer.
+projects_dir() {
+	local dir
+	dir=$(herdr plugin config-dir "$PLUGIN_ID" 2>/dev/null || true)
+	[[ -n $dir ]] || dir="$HOME/.config/herdr/plugins/config/$PLUGIN_ID"
+	printf '%s/projects\n' "$dir"
+}
+
+# The herdr-plus binary, which is not on PATH: herdr keeps it inside the plugin's
+# install directory, and that directory's name carries a commit hash that changes
+# on every update — so glob for it and take the most recently installed match. A
+# `herdr plugin link`ed checkout or a copy on PATH wins if present.
+plugin_bin() {
+	if command -v herdr-plus >/dev/null 2>&1; then
+		command -v herdr-plus
+		return
+	fi
+	local bin
+	bin=$(ls -td "$HOME"/.config/herdr/plugins/*/"$PLUGIN_ID"*/bin/herdr-plus 2>/dev/null | head -1 || true)
+	[[ -n $bin ]] || die "cannot find the herdr-plus binary; is the plugin installed?"
+	printf '%s\n' "$bin"
+}
+
+# Read one top-level key out of a project's TOML. Parsing stops at the first
+# table header so a [[tabs]] entry's own `name` can never shadow the project's.
+toml_key() {
+	local file=$1 key=$2
+	awk -v key="$key" '
+		/^[[:space:]]*\[/ { exit }
+		$0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+			sub(/^[^=]*=[[:space:]]*/, "")
+			gsub(/^"|"[[:space:]]*$/, "")
+			print
+			exit
+		}
+	' "$file"
+}
+
+# Every project name, in file order.
+project_names() {
+	local dir file name
+	dir=$(projects_dir)
+	[[ -d $dir ]] || die "no projects directory at $dir"
+	for file in "$dir"/*.toml; do
+		[[ -e $file ]] || continue
+		name=$(toml_key "$file" name)
+		[[ -n $name ]] && printf '%s\n' "$name"
+	done
+}
+
+# herdr's live workspace list, fetched once per run.
+WORKSPACES=""
+workspaces() {
+	[[ -n $WORKSPACES ]] || WORKSPACES=$(herdr workspace list 2>/dev/null || printf '{}')
+	printf '%s\n' "$WORKSPACES"
+}
+
+# The id of the workspace carrying this label, or nothing. The comparison is
+# case-insensitive, and the first match wins if a label is somehow duplicated.
+ws_id_for() {
+	workspaces | jq -r --arg l "$1" '
+		[.result.workspaces[]? | select((.label | ascii_downcase) == ($l | ascii_downcase))][0].workspace_id // empty
+	'
+}
+
+# Resolve a user-supplied name to a project name — exact first, then
+# case-insensitive, so `hp autodoc` finds "AutoDoc".
+resolve_name() {
+	local want=$1 name
+	while IFS= read -r name; do
+		[[ $name == "$want" ]] && { printf '%s\n' "$name"; return; }
+	done < <(project_names)
+	while IFS= read -r name; do
+		[[ ${name,,} == "${want,,}" ]] && { printf '%s\n' "$name"; return; }
+	done < <(project_names)
+	# No match: print nothing and succeed, so the caller decides what to do
+	# rather than set -e killing the script on the loop's final read.
+	return 0
+}
+
+# Focus the project's existing workspace, or hand it to herdr-plus to be built
+# from its template.
+open_or_attach() {
+	local name=$1 ws
+	ws=$(ws_id_for "$name")
+	if [[ -n $ws ]]; then
+		herdr workspace focus "$ws" >/dev/null
+		printf 'attached to %s (%s)\n' "$name" "$ws"
+		return
+	fi
+	"$(plugin_bin)" open "$name"
+}
+
+# One row per project: open marker, name, directory, workspace id. Used both for
+# --list and, minus the id column, as the picker's rows.
+rows() {
+	local dir file name wdir ws mark
+	dir=$(projects_dir)
+	for file in "$dir"/*.toml; do
+		[[ -e $file ]] || continue
+		name=$(toml_key "$file" name)
+		[[ -n $name ]] || continue
+		wdir=$(toml_key "$file" working_dir)
+		ws=$(ws_id_for "$name")
+		mark=" "
+		[[ -n $ws ]] && mark="●"
+		printf '%s\t%s\t%s\t%s\n' "$mark" "$name" "${wdir:-~}" "${ws:--}"
+	done
+}
+
+# Fuzzy-pick a project. Open workspaces are marked so it is obvious which choice
+# attaches and which builds a fresh workspace.
+pick() {
+	local choice
+	choice=$(rows | column -t -s $'\t' |
+		fzf --ansi --no-multi --prompt='project > ' \
+			--header='● = already open (enter attaches, nothing is recreated)' \
+			--height='100%' --border=none) || return 1
+	printf '%s\n' "$choice" | awk '{print $1 == "●" ? $2 : $1}'
+}
+
+case "${1:-}" in
+--list | -l)
+	rows | column -t -s $'\t'
+	exit 0
+	;;
+--help | -h)
+	sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'
+	exit 0
+	;;
+esac
+
+[[ -n ${HERDR_SOCKET_PATH:-} ]] || die "not inside herdr (HERDR_SOCKET_PATH is unset)"
+
+if [[ $# -gt 0 ]]; then
+	requested=$1
+	name=$(resolve_name "$requested")
+	if [[ -z $name ]]; then
+		# No such project — but a bare workspace by that name is still worth
+		# attaching to rather than failing.
+		if [[ -n $(ws_id_for "$requested") ]]; then
+			name=$requested
+		else
+			die "no project named '$requested'; available: $(project_names | paste -sd, -)"
+		fi
+	fi
+	open_or_attach "$name"
+	exit 0
+fi
+
+name=$(pick) || exit 0
+[[ -n $name ]] || exit 0
+open_or_attach "$name"
