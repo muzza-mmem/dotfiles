@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-cga repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-cga`.
+
+name = "portal-cga"
+description = "Portal CGA - capital grants application service (~/code/portal-cga)"
+working_dir = "~/code/portal-cga"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

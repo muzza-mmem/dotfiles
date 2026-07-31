@@ -1,0 +1,22 @@
+# herdr-plus project template: the audit-tools repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open audit-tools`.
+
+name = "audit-tools"
+description = "Isolated npm audit remediation for the portal repos (~/code/audit-tools)"
+working_dir = "~/code/audit-tools"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

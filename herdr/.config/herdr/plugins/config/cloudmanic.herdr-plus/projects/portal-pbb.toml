@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the portal-pbb repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open portal-pbb`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "portal-pbb"
+description = "Portal PBB - product brochure builder service (~/code/portal-pbb)"
+working_dir = "~/code/portal-pbb"
 
 [[tabs]]
 name = "claude"

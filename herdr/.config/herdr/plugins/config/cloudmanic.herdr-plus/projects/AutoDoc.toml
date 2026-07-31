@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the AutoDoc repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open AutoDoc`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "AutoDoc"
+description = "Document processing platform with AI extraction (~/code/AutoDoc)"
+working_dir = "~/code/AutoDoc"
 
 [[tabs]]
 name = "claude"

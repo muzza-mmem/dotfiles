@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-autodoc repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-autodoc`.
+
+name = "portal-autodoc"
+description = "Portal AutoDoc domain service (~/code/portal-autodoc)"
+working_dir = "~/code/portal-autodoc"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

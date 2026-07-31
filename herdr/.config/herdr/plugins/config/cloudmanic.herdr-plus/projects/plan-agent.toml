@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the plan-agent repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open plan-agent`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "plan-agent"
+description = "Planning agent service (~/code/plan-agent)"
+working_dir = "~/code/plan-agent"
 
 [[tabs]]
 name = "claude"

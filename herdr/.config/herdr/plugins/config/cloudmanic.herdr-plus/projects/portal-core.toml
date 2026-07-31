@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-core repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-core`.
+
+name = "portal-core"
+description = "Portal Platform core - gateway, shell and shared services (~/code/portal-core)"
+working_dir = "~/code/portal-core"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-sales repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-sales`.
+
+name = "portal-sales"
+description = "Portal Sales - sales dashboard service (~/code/portal-sales)"
+working_dir = "~/code/portal-sales"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

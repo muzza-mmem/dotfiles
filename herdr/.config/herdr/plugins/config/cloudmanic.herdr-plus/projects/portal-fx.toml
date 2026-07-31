@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the portal-fx repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open portal-fx`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "portal-fx"
+description = "Portal Fx - foreign exchange register service (~/code/portal-fx)"
+working_dir = "~/code/portal-fx"
 
 [[tabs]]
 name = "claude"

@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-openobserve repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-openobserve`.
+
+name = "portal-openobserve"
+description = "OpenObserve observability deployment (~/code/portal-openobserve)"
+working_dir = "~/code/portal-openobserve"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"

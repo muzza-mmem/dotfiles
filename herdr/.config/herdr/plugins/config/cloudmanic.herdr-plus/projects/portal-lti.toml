@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the portal-lti repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open portal-lti`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "portal-lti"
+description = "Portal LTI - long term incentives service (~/code/portal-lti)"
+working_dir = "~/code/portal-lti"
 
 [[tabs]]
 name = "claude"

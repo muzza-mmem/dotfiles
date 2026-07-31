@@ -1,10 +1,10 @@
-# herdr-plus project template: the dotfiles repo.
+# herdr-plus project template: the portal-qms repo.
 # Opened from the projects browser (prefix+p) or headlessly with
-# `herdr-plus open dotfiles`.
+# `herdr-plus open portal-qms`.
 
-name = "dotfiles"
-description = "Stow-managed dotfiles (~/dotfiles)"
-working_dir = "~/dotfiles"
+name = "portal-qms"
+description = "Portal QMS - quality management system service (~/code/portal-qms)"
+working_dir = "~/code/portal-qms"
 
 [[tabs]]
 name = "claude"

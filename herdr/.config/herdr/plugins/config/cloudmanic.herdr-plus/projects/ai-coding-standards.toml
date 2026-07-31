@@ -1,0 +1,22 @@
+# herdr-plus project template: the ai-coding-standards repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open ai-coding-standards`.
+
+name = "ai-coding-standards"
+description = "MMEM company-wide coding standards (~/code/ai-coding-standards)"
+working_dir = "~/code/ai-coding-standards"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"
