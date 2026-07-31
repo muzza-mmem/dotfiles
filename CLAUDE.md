@@ -2,6 +2,22 @@
 
 Configuration files for local packages (vim, tmux, etc.), organized for use with GNU Stow.
 
+## Git workflow
+
+This repo has no review process — it is a single-author config repo, so the
+normal branch/PR dance is overhead.
+
+- **Always work directly on `master`.** Never create a feature branch or a
+  worktree for a change here. (`master` is this repo's default and only
+  branch — there is no `main`.)
+- **Always commit changes**, without waiting to be asked. Don't leave edits
+  sitting in the working tree.
+- **Keep the message short** — a single subject line in the existing
+  `<package>: <what changed>` style (e.g. `herdr: bind herdr-plus actions`).
+  No body unless something is genuinely non-obvious.
+- **No emojis** anywhere in commit messages.
+- **Push to `origin master`** immediately after committing.
+
 ## Layout
 
 Each top-level directory is a Stow "package" mirroring the structure that should appear under `~`. **Always prefer `~/.config/<package>/` as the destination** — do not place config files directly under `~` (e.g. `tmux/.tmux.conf` → `~/.tmux.conf`). Use the tmux package as the canonical example:
