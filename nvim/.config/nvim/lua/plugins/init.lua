@@ -20,13 +20,30 @@ return {
     "nvim-tree/nvim-tree.lua",
     cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeOpen", "NvimTreeFindFile", "NvimTreeFindFileToggle" },
     init = function()
+      -- opening a directory -> tree focused on it; opening a file -> tree as a
+      -- sidebar rooted at the containing dir, cursor left in the file
       vim.api.nvim_create_autocmd("VimEnter", {
         once = true,
         callback = function()
           local arg = vim.fn.argv(0)
-          if arg ~= "" and vim.fn.isdirectory(arg) == 1 then
-            require("lazy").load { plugins = { "nvim-tree.lua" } }
+          if arg == "" or vim.bo.filetype == "gitcommit" or vim.bo.filetype == "gitrebase" then
+            return
+          end
+
+          local is_dir = vim.fn.isdirectory(arg) == 1
+          local dir = is_dir and arg or vim.fn.fnamemodify(arg, ":p:h")
+          if vim.fn.isdirectory(dir) == 0 then
+            return
+          end
+
+          -- sync_root_with_cwd is on, so cwd decides the tree root
+          vim.cmd.cd(vim.fn.fnameescape(dir))
+          require("lazy").load { plugins = { "nvim-tree.lua" } }
+
+          if is_dir then
             require("nvim-tree.api").tree.open { focus = true }
+          else
+            require("nvim-tree.api").tree.find_file { open = true, focus = false }
           end
         end,
       })
