@@ -4,32 +4,31 @@
 input=$(cat)
 
 cwd=$(echo "$input" | jq -r '.cwd // empty')
-dir=$(basename "${cwd:-$(pwd)}")
 
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 
-# --- Reusable color-coded dot progress bar -------------------------------
-# usage: make_bar <percentage> <num_dots>   -> echoes "●●●○○ " coloured by level
+# --- Reusable color-coded block progress bar ----------------------------
+# usage: make_bar <percentage> <width>   -> echoes "███░░ " coloured by level
 make_bar() {
-  local pct=$1 ndots=$2
+  local pct=$1 width=$2
   local filled empty color
   pct=$(printf "%.0f" "$pct")
-  filled=$(awk -v p="$pct" -v n="$ndots" 'BEGIN{f=int(p*n/100+0.5); if(f<0)f=0; if(f>n)f=n; print f}')
-  empty=$((ndots - filled))
+  filled=$(awk -v p="$pct" -v n="$width" 'BEGIN{f=int(p*n/100+0.5); if(f<0)f=0; if(f>n)f=n; print f}')
+  empty=$((width - filled))
 
-  if   [ "$pct" -gt 85 ]; then color='\033[0;31m'   # red
-  elif [ "$pct" -ge 60 ]; then color='\033[0;33m'   # yellow
-  else                         color='\033[0;32m'   # green
+  if   [ "$pct" -gt 70 ]; then color='\033[0;31m'        # red
+  elif [ "$pct" -gt 40 ]; then color='\033[38;5;208m'    # orange
+  else                         color='\033[0;32m'        # green
   fi
   local dim='\033[0;90m' reset='\033[0m'
 
   local f e
-  f=$(printf '%*s' "$filled" '' | tr ' ' '@'); f=${f//@/●}
-  e=$(printf '%*s' "$empty"  '' | tr ' ' '@'); e=${e//@/○}
+  f=$(printf '%*s' "$filled" '' | tr ' ' '@'); f=${f//@/█}
+  e=$(printf '%*s' "$empty"  '' | tr ' ' '@'); e=${e//@/░}
   printf "%b%s%b%s%b" "$color" "$f" "$dim" "$e" "$reset"
 }
 
-# --- Context window bar (10 dots) ----------------------------------------
+# --- Context window bar (10 blocks) --------------------------------------
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
 context_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
@@ -48,11 +47,19 @@ fi
 # --- Effort + thinking indicators ----------------------------------------
 effort=$(echo "$input" | jq -r '.effort.level // empty')
 thinking=$(echo "$input" | jq -r '.thinking.enabled // empty')
+case "$effort" in
+  low)    effort_short="L" ;;
+  medium) effort_short="M" ;;
+  high)   effort_short="H" ;;
+  xhigh)  effort_short="xH" ;;
+  max)    effort_short="MAX" ;;
+  *)      effort_short="$effort" ;;
+esac
+[ -n "$effort_short" ] && model="${model:+$model }(${effort_short})"
 indicators=""
-[ -n "$effort" ] && indicators="⚙  ${effort}"
-[ "$thinking" = "true" ] && indicators="${indicators:+$indicators }🧠"
+[ "$thinking" = "true" ] && indicators="🧠"
 
-# --- Rate-limit bars (5 dots each): 5-hour and 7-day ---------------------
+# --- Rate-limit bars (5 blocks each): 5-hour and 7-day -------------------
 rl_5h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 rl_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 rate_line=""
@@ -82,10 +89,8 @@ if git -C "${cwd:-.}" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1; t
   fi
 fi
 
-# --- Compose line 1: ➜  <dir> <git> | <model> <indicators> <context> ----
-parts=""
-parts="${parts}$(printf '\033[1;31m')➜$(printf '\033[0m') "
-parts="${parts}$(printf '\033[0;36m')${dir}$(printf '\033[0m')"
+# --- Compose line 1: ➜  <git> | <model> (<effort>) <indicators> ---------
+parts="$(printf '\033[1;31m')➜$(printf '\033[0m')"
 [ -n "$git_status" ] && parts="${parts} $(printf '\033[1;34m')${git_status}$(printf '\033[0m')"
 
 suffix="$model"
