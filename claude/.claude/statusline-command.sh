@@ -58,14 +58,10 @@ indicators=""
 # --- Rate-limit bars (5 blocks each): 5-hour and 7-day -------------------
 rl_5h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 rl_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
-rate_line=""
-if [ -n "$rl_5h" ]; then
-  rate_line="$(printf '\033[0;90m')5h$(printf '\033[0m') $(make_bar "$rl_5h" 5) $(printf "%.0f%%" "$rl_5h")"
-fi
-if [ -n "$rl_7d" ]; then
-  seg="$(printf '\033[0;90m')7d$(printf '\033[0m') $(make_bar "$rl_7d" 5) $(printf "%.0f%%" "$rl_7d")"
-  rate_line="${rate_line:+$rate_line  }${seg}"
-fi
+rate_5h=""
+rate_7d=""
+[ -n "$rl_5h" ] && rate_5h="$(printf '\033[0;90m')5h$(printf '\033[0m') $(make_bar "$rl_5h" 5) $(printf "%.0f%%" "$rl_5h")"
+[ -n "$rl_7d" ] && rate_7d="$(printf '\033[0;90m')7d$(printf '\033[0m') $(make_bar "$rl_7d" 5) $(printf "%.0f%%" "$rl_7d")"
 
 # --- Git branch and status (skipping optional locks) ---------------------
 git_status=""
@@ -85,17 +81,20 @@ if git -C "${cwd:-.}" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1; t
   fi
 fi
 
-# --- Compose line 1: ➜  <dir> <git> | <model> (<effort>) <indicators> ---
-parts="$(printf '\033[1;31m')➜$(printf '\033[0m') $(printf '\033[0;36m')${dir}$(printf '\033[0m')"
-[ -n "$git_status" ] && parts="${parts} $(printf '\033[1;34m')${git_status}$(printf '\033[0m')"
+# --- Compose: ➜ <dir> <git> | <model> (<effort>) <thinking> | Ctx | 5h | 7d
+sep="$(printf '\033[0;37m')|$(printf '\033[0m')"
+add() { [ -n "$1" ] && line="${line:+$line $sep }$1"; }
 
-suffix="$model"
-[ -n "$indicators" ]  && suffix="${suffix:+$suffix }${indicators}"
-[ -n "$suffix" ] && parts="${parts} $(printf '\033[0;37m')| $(printf '\033[0m')${suffix}"
+head="$(printf '\033[1;31m')➜$(printf '\033[0m') $(printf '\033[0;36m')${dir}$(printf '\033[0m')"
+[ -n "$git_status" ] && head="${head} $(printf '\033[1;34m')${git_status}$(printf '\033[0m')"
 
-printf "%s" "$parts"
+model_str="$model"
+[ -n "$indicators" ] && model_str="${model_str:+$model_str }${indicators}"
 
-# --- Line 2: context window + rate limits (own line, never clips line 1) -
-line2="$context_str"
-[ -n "$rate_line" ] && line2="${line2:+$line2  }${rate_line}"
-[ -n "$line2" ] && printf "\n  %s" "$line2"
+line="$head"
+add "$model_str"
+add "$context_str"
+add "$rate_5h"
+add "$rate_7d"
+
+printf "%s" "$line"
