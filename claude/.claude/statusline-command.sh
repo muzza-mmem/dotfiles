@@ -7,6 +7,8 @@ cwd=$(echo "$input" | jq -r '.cwd // empty')
 dir=$(basename "${cwd:-$(pwd)}")
 
 model=$(echo "$input" | jq -r '.model.display_name // empty')
+# Strip capability suffixes like "(1M context)" from the display name
+model=$(echo "$model" | sed -E 's/ *\([^)]*\)//g')
 
 # --- Reusable color-coded block progress bar ----------------------------
 # usage: make_bar <percentage> <width>   -> echoes "███░░ " coloured by level
