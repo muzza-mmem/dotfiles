@@ -148,6 +148,12 @@ alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 # User scripts (dotfiles bin package)
 export PATH="$HOME/.local/bin:$PATH"
 
+# Go toolchain, installed from the upstream tarball into ~/.local/go rather than
+# apt (which is stuck several major versions back). Needed to build herdr-plus
+# from source — `herdr plugin install` only compiles the cloned plugin when go is
+# on PATH, otherwise it downloads an upstream prebuilt binary.
+export PATH="$HOME/.local/go/bin:$PATH"
+
 # 1Password CLI — the Windows binary, so the desktop-app integration (Windows
 # Hello) can authenticate; SSO accounts have no password/Secret-Key CLI flow,
 # and the Linux op in WSL can't reach the Windows app.
