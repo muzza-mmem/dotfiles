@@ -81,9 +81,12 @@ if git -C "${cwd:-.}" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1; t
   fi
 fi
 
-# --- Compose: ➜ <dir> <git> | <model> (<effort>) <thinking> | Ctx | 5h | 7d
+# --- Compose two lines:
+#   line 1: ➜ <dir> <git> | <model> (<effort>) <thinking>
+#   line 2: Ctx | 5h | 7d
 sep="$(printf '\033[0;37m')|$(printf '\033[0m')"
 add() { [ -n "$1" ] && line="${line:+$line $sep }$1"; }
+add2() { [ -n "$1" ] && line2="${line2:+$line2 $sep }$1"; }
 
 head="$(printf '\033[1;31m')➜$(printf '\033[0m') $(printf '\033[0;36m')${dir}$(printf '\033[0m')"
 [ -n "$git_status" ] && head="${head} $(printf '\033[1;34m')${git_status}$(printf '\033[0m')"
@@ -93,8 +96,11 @@ model_str="$model"
 
 line="$head"
 add "$model_str"
-add "$context_str"
-add "$rate_5h"
-add "$rate_7d"
+
+line2=""
+add2 "$context_str"
+add2 "$rate_5h"
+add2 "$rate_7d"
 
 printf "%s" "$line"
+[ -n "$line2" ] && printf "\n%s" "$line2"
