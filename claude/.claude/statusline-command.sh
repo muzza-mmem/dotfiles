@@ -4,6 +4,7 @@
 input=$(cat)
 
 cwd=$(echo "$input" | jq -r '.cwd // empty')
+dir=$(basename "${cwd:-$(pwd)}")
 
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 
@@ -30,18 +31,11 @@ make_bar() {
 
 # --- Context window bar (10 blocks) --------------------------------------
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
-context_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
 context_str=""
 if [ -n "$used" ]; then
   used_rounded=$(printf "%.0f" "$used")
   bar=$(make_bar "$used_rounded" 10)
-  if [ -n "$total_input" ] && [ -n "$context_size" ]; then
-    tokens_k=$(echo "$total_input $context_size" | awk '{printf "%dk/%dk", $1/1000, $2/1000}')
-    context_str="${bar} ${used_rounded}% ${tokens_k}"
-  else
-    context_str="${bar} ${used_rounded}%"
-  fi
+  context_str="$(printf '\033[0;90m')Ctx$(printf '\033[0m') ${bar} ${used_rounded}%"
 fi
 
 # --- Effort + thinking indicators ----------------------------------------
@@ -89,8 +83,8 @@ if git -C "${cwd:-.}" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1; t
   fi
 fi
 
-# --- Compose line 1: ➜  <git> | <model> (<effort>) <indicators> ---------
-parts="$(printf '\033[1;31m')➜$(printf '\033[0m')"
+# --- Compose line 1: ➜  <dir> <git> | <model> (<effort>) <indicators> ---
+parts="$(printf '\033[1;31m')➜$(printf '\033[0m') $(printf '\033[0;36m')${dir}$(printf '\033[0m')"
 [ -n "$git_status" ] && parts="${parts} $(printf '\033[1;34m')${git_status}$(printf '\033[0m')"
 
 suffix="$model"

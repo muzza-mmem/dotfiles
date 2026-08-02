@@ -61,7 +61,7 @@
     "superpowers@claude-plugins-official": true
   },
   "viewMode": "default",
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
