@@ -71,6 +71,13 @@ new_workspace = "prefix+shift+n"
 previous_workspace = "prefix+shift+left"
 next_workspace = "prefix+shift+right"
 
+# Agent attention queue — no tmux equivalent. The sidebar agent list is
+# vertical, so it takes the vertical axis of the same prefix-less shift+arrow
+# scheme the tabs use horizontally above.
+previous_agent = "shift+up"
+next_agent = "shift+down"
+focus_agent = "prefix+alt+1..9"
+
 toggle_sidebar = "prefix+b"
 
 # Navigate mode keeps vi movement, matching `setw -g mode-keys vi`.
