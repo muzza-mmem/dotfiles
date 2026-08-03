@@ -55,13 +55,13 @@ esac
 indicators=""
 [ "$thinking" = "true" ] && indicators="🧠"
 
-# --- Rate-limit bars (5 blocks each): 5-hour and 7-day -------------------
+# --- Rate-limit bars (10 blocks each, matching Ctx): 5-hour and 7-day ----
 rl_5h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 rl_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 rate_5h=""
 rate_7d=""
-[ -n "$rl_5h" ] && rate_5h="$(printf '\033[0;90m')5h$(printf '\033[0m') $(make_bar "$rl_5h" 5) $(printf "%.0f%%" "$rl_5h")"
-[ -n "$rl_7d" ] && rate_7d="$(printf '\033[0;90m')7d$(printf '\033[0m') $(make_bar "$rl_7d" 5) $(printf "%.0f%%" "$rl_7d")"
+[ -n "$rl_5h" ] && rate_5h="$(printf '\033[0;90m')5h$(printf '\033[0m') $(make_bar "$rl_5h" 10) $(printf "%.0f%%" "$rl_5h")"
+[ -n "$rl_7d" ] && rate_7d="$(printf '\033[0;90m')7d$(printf '\033[0m') $(make_bar "$rl_7d" 10) $(printf "%.0f%%" "$rl_7d")"
 
 # --- Git branch and status (skipping optional locks) ---------------------
 git_status=""
