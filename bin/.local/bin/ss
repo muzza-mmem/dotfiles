@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ss - SSH into a portal environment (dev / test / uat).
+# ss - SSH into a portal environment (dev / test / uat / prod).
 #
 # Checks the VPN connection first (currently a stub), then either opens an
 # interactive SSH session or runs a one-shot command on the remote host and
@@ -22,6 +22,7 @@ Environments:
   dev    pcportal-dev
   test   10.64.96.41
   uat    10.64.96.38
+  prod   pcportal.mml.com.au
 
 Options:
   -c, --command <str>  Run <str> on the remote host via its login shell.
@@ -67,6 +68,7 @@ case "$env" in
 	dev)  host="pcportal-dev" ;;
 	test) host="10.64.96.41" ;;
 	uat)  host="10.64.96.38" ;;
+	prod) host="pcportal.mml.com.au" ;;
 	-h|--help)
 		usage
 		exit 0
