@@ -13,8 +13,9 @@ onboarding = false
 # ── Theme: Catppuccin Mocha, mauve accent ───────────────────────────
 # tmux: @catppuccin_flavour 'mocha' + pane-active-border-style fg=#cba6f7
 [theme]
-name = "catppuccin"
+name = "dracula"
 
+auto_switch = false
 [terminal]
 # tmux: every split/new-window is `-c "#{pane_current_path}"`
 new_cwd = "follow"
