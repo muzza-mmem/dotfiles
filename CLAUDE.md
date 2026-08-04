@@ -2,6 +2,40 @@
 
 Configuration files for local packages (vim, tmux, etc.), organized for use with GNU Stow.
 
+## THIS REPO IS PUBLIC
+
+`https://github.com/muzza-mmem/dotfiles` is a **public** GitHub repository.
+Everything committed here is world-readable and permanently in the history —
+a later deletion does not undo it. Combined with the "always commit and push
+immediately" rule below, there is no review step to catch a mistake, so the
+check has to happen **before** the write.
+
+**Never commit any of the following:**
+
+- Credentials of any kind — passwords, API tokens, npm `_authToken` values,
+  OAuth tokens, `.credentials.json`, session cookies, connection strings.
+- Private keys or certificates — `id_*`, `*.pem`, `*.key`, `*.p12`, anything
+  matching `BEGIN ... PRIVATE KEY`.
+- Real `.env` files, `secrets` files, or Key Vault / 1Password material.
+- Internal infrastructure detail — private IP addresses, internal-only
+  hostnames, VPN endpoints, database hosts, port mappings.
+- Personal data — home addresses, phone numbers, colleagues' names or emails,
+  customer or client data.
+
+**Instead:** commit a `*.example` template with the value left blank (see
+`_migration/templates/`), read the real value from `~/.config/secrets` or the
+environment at runtime, and add the real path to `.gitignore`.
+
+**Before every commit:** re-read the diff (`git diff --cached`) with the
+question "would I be happy for a stranger to read this?". If a secret is ever
+pushed, treat it as compromised — **rotate it first**, then worry about the
+history.
+
+Note the existing `.gitignore` uses an allowlist for `claude/.claude/*`:
+everything Claude Code writes there is ignored by default and a new tracked
+file needs an explicit `!` line. Keep that shape — do not loosen it to a
+broad un-ignore.
+
 ## Git workflow
 
 This repo has no review process — it is a single-author config repo, so the
@@ -31,6 +65,26 @@ dotfiles/
 ```
 
 This stows to `~/.config/tmux/tmux.conf`. Only fall back to placing a file directly under `~` if the tool genuinely does not support `XDG_CONFIG_HOME` / `~/.config`.
+
+### Current contents
+
+Inventory as of 2026-08-04 (89 tracked files). Stow packages:
+
+| Package | Stows to | Contents |
+|---|---|---|
+| `bash/` | `~/.bashrc` | Bash rc; sources `~/.config/secrets` (untracked). |
+| `bin/` | `~/.local/bin/` | Personal scripts: `ss` (ssh to a portal env), `ad-start`/`ad-stop`, `qms-start`/`qms-stop`, `dps`, `hp`, `docker-cleanup`. |
+| `claude/` | `~/.claude/` | Claude Code config: `CLAUDE.md`, `settings.json`, `keybindings.json`, `statusline-command.sh`, `hooks/`, and `skills/` (audit-fix, cleanup, cut-release, fast-track, feature-worktree-workflow, jira-sync, myweek, pdf, pickup-work, review-pr, ss). Allowlisted in `.gitignore` — see the public-repo section. |
+| `git/` | `~/.config/git/config` | Git identity and the `gh` credential helper. |
+| `herdr/` | `~/.config/herdr/` | herdr `config.toml` plus herdr-plus per-project TOMLs. |
+| `nvim/` | `~/.config/nvim/` | NvChad-based config (`init.lua`, `lua/`); `lazy-lock.json` is gitignored. |
+| `tmux/` | `~/.config/tmux/tmux.conf` | tmux config; `plugins/` (tpm) is gitignored. |
+| `zsh/` | `~/.zshrc` | Oh My Zsh setup, plus the pre-omz backup. |
+
+Non-package directories:
+
+- `_migration/` — one-shot machine rebuild (see below).
+- `docs/superpowers/` — plans and specs from past work; reference only.
 
 ### `_migration/` is not a Stow package
 
