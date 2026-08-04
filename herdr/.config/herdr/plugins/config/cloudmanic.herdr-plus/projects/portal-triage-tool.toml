@@ -1,0 +1,22 @@
+# herdr-plus project template: the portal-triage-tool repo.
+# Opened from the projects browser (prefix+p) or headlessly with
+# `herdr-plus open portal-triage-tool`.
+
+name = "portal-triage-tool"
+description = "OpenObserve log triage tool for the portal envs (~/code/portal-triage-tool)"
+working_dir = "~/code/portal-triage-tool"
+
+[[tabs]]
+name = "claude"
+command = "cld"
+
+[[tabs]]
+name = "nvim"
+command = "v"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "terminal"
