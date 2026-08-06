@@ -17,9 +17,6 @@ dnsTunneling=true
 # Chromium runs headless under xvfb here, so WSLg is dead weight.
 guiApplications=false
 
-# The VHD otherwise only ever grows — this lets freed space be reclaimed.
-sparseVhd=true
-
 # --- Deliberate omissions ------------------------------------------------
 #
 # processors: omitted on purpose. Defaults to all logical cores, which is what
@@ -35,3 +32,11 @@ sparseVhd=true
 #   host<->container networking, but still has rough edges with published
 #   ports. Enable deliberately, later, not during a rebuild.
 # networkingMode=mirrored
+
+[experimental]
+# The VHD otherwise only ever grows — this lets freed space be reclaimed.
+# Belongs here, not in [wsl2]: WSL 2.7 logs "Unknown key 'wsl2.sparseVhd'" and
+# ignores it if it is set above. Only affects distros created afterwards; an
+# existing one needs, from Windows with the distro stopped:
+#   wsl --manage <distro> --set-sparse true
+sparseVhd=true
