@@ -68,15 +68,18 @@ make the first run look tidy.
 | `40-tools.sh` | lazygit, zoxide, herdr, Go toolchain, pipx apps |
 | `45-claude-plugins.sh` | Claude Code marketplace + the `superpowers` plugin |
 | `50-stow.sh` | Stow every package, seed secret templates |
+| `55-herdr-plugins.sh` | herdr plugins config.toml binds keys to (`cloudmanic.herdr-plus`) |
 | `60-tmux.sh` | tpm + plugins |
 | `70-nvim.sh` | Neovim from upstream tarball, `Lazy! sync` |
 | `80-repos.sh` | Clone `repos.tsv` into `~/code` |
 | `90-wsl.sh` | `/etc/wsl.conf` + Windows `.wslconfig` |
 
-Order matters in three places: `00-apt.sh` precedes everything, `20-node.sh`
-must precede `45-claude-plugins.sh` (which needs the `claude` CLI), and
+Order matters in four places: `00-apt.sh` precedes everything, `20-node.sh`
+must precede `45-claude-plugins.sh` (which needs the `claude` CLI),
 `50-stow.sh` must precede `60-tmux.sh` and `70-nvim.sh` (both need their stowed
-config).
+config), and `50-stow.sh` must precede `55-herdr-plugins.sh` — it is what makes
+`~/.config/herdr/plugins` a real directory, so installing a herdr plugin any
+earlier writes the plugin clone into this repo's working tree.
 
 ## Adding a repo
 

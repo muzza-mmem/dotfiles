@@ -1,6 +1,12 @@
 /nvim/.config/nvim/lazy-lock.json
 /tmux/.config/tmux/plugins
 
+# herdr's installed-plugin store: `herdr plugin install` clones the plugin repo
+# and compiles its binary here (~9MB each). 50-stow.sh keeps
+# ~/.config/herdr/plugins a real directory so this never lands in the working
+# tree — this is the belt for when it does anyway.
+/herdr/.config/herdr/plugins/github/
+
 # --- Claude Code runtime state -------------------------------------------
 # If ~/.claude is ever a folded Stow symlink into this repo (see REAL_DIRS in
 # _migration/install/50-stow.sh, which prevents that), Claude Code writes its

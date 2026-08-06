@@ -91,6 +91,17 @@ heading "Claude Code plugins"
 check "superpowers plugin installed" \
 	bash -c 'claude plugin list 2>/dev/null | grep -q superpowers'
 
+heading "herdr plugins"
+# config.toml binds keys to cloudmanic.herdr-plus actions; this catches the case
+# where the bindings are stowed but the plugin was never installed (see 55-*.sh),
+# in which case they silently do nothing.
+check "cloudmanic.herdr-plus installed" \
+	bash -c 'herdr plugin list 2>/dev/null | grep -q cloudmanic.herdr-plus'
+# The plugin store is a git clone plus a compiled binary. If plugins/ is a
+# folded Stow symlink, all of that lands in the repo working tree.
+check "~/.config/herdr/plugins is a real dir" \
+	bash -c '[[ -d "$HOME/.config/herdr/plugins" && ! -L "$HOME/.config/herdr/plugins" ]]'
+
 heading "Repos"
 manifest="$MIGRATION_DIR/repos.tsv"
 if [[ -f $manifest ]]; then

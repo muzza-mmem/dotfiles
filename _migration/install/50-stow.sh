@@ -28,8 +28,12 @@ PACKAGES=(bash bin claude git herdr nvim tmux zsh)
 # bin owns ~/.local/bin, where pipx and the fdfind shim install binaries;
 # claude is the dangerous one above; git's dir is where `git config --global`
 # writes; herdr's holds its server socket (herdr.sock) and is rewritten by its
-# in-app settings screen; nvim's is where lazy.nvim writes lazy-lock.json; tmux's plugins dir
-# is where tpm clones whole plugin git repos.
+# in-app settings screen; herdr's plugins/ and plugins/config/ are where
+# `herdr plugin install` clones the plugin repo and builds its binary (~9MB of
+# Go source plus a compiled artifact per plugin), so only the one plugin config
+# directory this repo actually owns — plugins/config/cloudmanic.herdr-plus —
+# stays folded; nvim's is where lazy.nvim writes lazy-lock.json; tmux's plugins
+# dir is where tpm clones whole plugin git repos.
 REAL_DIRS=(
 	"$HOME/.config"
 	"$HOME/.local/bin"
@@ -38,6 +42,8 @@ REAL_DIRS=(
 	"$HOME/.claude/skills"
 	"$HOME/.config/git"
 	"$HOME/.config/herdr"
+	"$HOME/.config/herdr/plugins"
+	"$HOME/.config/herdr/plugins/config"
 	"$HOME/.config/nvim"
 	"$HOME/.config/tmux"
 	"$HOME/.config/tmux/plugins"
