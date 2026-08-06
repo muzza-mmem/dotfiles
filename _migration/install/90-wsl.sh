@@ -112,10 +112,15 @@ else
 		else
 			if [[ -f $dest ]]; then
 				log "backing up $dest -> ${dest}.bak"
-				cp -a "$dest" "${dest}.bak"
+				cp -- "$dest" "${dest}.bak"
 			fi
 			log "writing $dest"
-			install -m 0644 "$SRC_WSLCONFIG" "$dest"
+			# Plain cp, not `install -m` / `cp -a`: this lands on DrvFs, which
+			# rejects chmod ("Operation not permitted") unless the automount
+			# `metadata` option is active — and that only comes from the
+			# /etc/wsl.conf written above, after a `wsl --shutdown`. Unix mode
+			# bits are meaningless on the Windows side anyway.
+			cp -- "$SRC_WSLCONFIG" "$dest"
 			ok ".wslconfig installed to $dest"
 		fi
 	fi
