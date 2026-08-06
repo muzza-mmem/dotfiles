@@ -1,7 +1,12 @@
-# Copy to ~/.npmrc and fill in the token, then: chmod 600 ~/.npmrc
+# Copy to ~/.npmrc, then: chmod 600 ~/.npmrc
 #
 # The @mmem scope resolves from GitHub Packages, which needs a classic PAT with
 # read:packages. Generate a FRESH one on the new machine — do not carry the old
 # token across. See _migration/MIGRATION.md section 3.
+#
+# The PAT itself does NOT go in this file. npm expands ${VAR} when it reads an
+# .npmrc, so the token lives once in ~/.config/secrets (as NODE_AUTH_TOKEN) and
+# rotating it means editing one file, not two. The portal repos' own tracked
+# .npmrc files already use this same placeholder.
 @mmem:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}

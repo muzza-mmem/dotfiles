@@ -109,6 +109,13 @@ for f in "$HOME/.ssh/id_ed25519" "$HOME/.config/secrets" "$HOME/.npmrc"; do
 	check "exists: ${f/#$HOME/\~}" test -s "$f"
 done
 check "npmrc has a token" bash -c 'grep -qE "_authToken=.+" "$HOME/.npmrc"'
+# ~/.npmrc holds `_authToken=${NODE_AUTH_TOKEN}`, so the check above passes on a
+# placeholder that expands to nothing if secrets was never filled in — which
+# reads as configured but 401s on the first @mmem install. Resolve it for real.
+check "npm resolves the @mmem scope" bash -c '
+	source "$HOME/.config/secrets" 2>/dev/null
+	[[ -n ${NODE_AUTH_TOKEN:-} ]] || exit 1
+	NODE_AUTH_TOKEN="$NODE_AUTH_TOKEN" npm view @mmem/portal-ui version >/dev/null 2>&1'
 check "gh authenticated" gh auth status
 
 heading "Result"

@@ -49,7 +49,7 @@ roughly ten failures.** They are:
 | `superpowers plugin installed` | The probe shells out to `claude`, which is not on PATH yet for the same reason as `node`. |
 | `docker daemon reachable`, `hello-world runs` | The `docker` group change only applies to a new session (and systemd needs `/etc/wsl.conf` applied). |
 | `exists: ~/.ssh/id_ed25519` | Keys are carried by hand — MIGRATION.md section 2. |
-| `npmrc has a token` | `~/.npmrc` was seeded from a template with the token deliberately blank. |
+| `npm resolves the @mmem scope` | `~/.npmrc` references `${NODE_AUTH_TOKEN}`, and `~/.config/secrets` is not filled in yet — MIGRATION.md sections 3 and 4. |
 
 After `wsl --shutdown` from Windows, reopening the distro, and doing the
 re-auth / secrets follow-ups `bootstrap.sh` prints, run `./_migration/smoke-test.sh`

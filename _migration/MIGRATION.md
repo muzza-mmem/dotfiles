@@ -135,9 +135,11 @@ free opportunity to rotate rather than copy.
 - [ ] `~/.docker/config.json` — holds a GitHub PAT (ghcr.io) and two Docker Hub
       tokens as **plain base64**, which is encoding, not encryption. Revoke and
       re-issue, then `docker login` fresh on the new box.
-- [ ] `~/.npmrc` — holds the `@mmem` GitHub Packages PAT. Revoke, issue a new
-      classic PAT with `read:packages`, and put it in the `~/.npmrc` that
-      `50-stow.sh` seeds from `templates/npmrc.example`.
+- [ ] `@mmem` GitHub Packages PAT — revoke, issue a new classic PAT with
+      `read:packages`, and put it in `~/.config/secrets` as `NODE_AUTH_TOKEN`.
+      It does *not* go in `~/.npmrc`: the file `50-stow.sh` seeds from
+      `templates/npmrc.example` references the variable by name, so the token
+      lives in exactly one place.
 
 ## 4. Re-authenticate on the new box (nothing to copy)
 
@@ -147,8 +149,8 @@ free opportunity to rotate rather than copy.
 - [ ] `codex` — log in on first run (aliased as `cod` in `zsh/.zshrc`)
 - [ ] `az login` — nothing about the Azure CLI's auth state is carried over
 - [ ] `docker login` and `docker login ghcr.io` (with the rotated tokens)
-- [ ] Add the new npm token to `~/.npmrc`
-- [ ] Fill in `~/.config/secrets`
+- [ ] Fill in `~/.config/secrets` — including `NODE_AUTH_TOKEN`, which is what
+      makes `@mmem` installs work (see section 3)
 - [ ] **Confirm the `superpowers` Claude Code plugin is actually installed.**
       `45-claude-plugins.sh` installs it, but it only warns on failure, and
       `settings.json` lists it in `enabledPlugins` either way — so an enabled
