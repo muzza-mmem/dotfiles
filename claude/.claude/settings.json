@@ -54,7 +54,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/muzzakhan/.claude/statusline-command.sh",
+    "command": "bash \"$HOME/.claude/statusline-command.sh\"",
     "refreshInterval": 5
   },
   "enabledPlugins": {
