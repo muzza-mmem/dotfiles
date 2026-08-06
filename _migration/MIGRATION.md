@@ -163,7 +163,7 @@ free opportunity to rotate rather than copy.
 - [ ] Windows Terminal `settings.json` — back up the profile, and note which
       **Nerd Font** is set. tmux and Neovim glyphs render as tofu without it.
       Path: `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_*\LocalState\settings.json`
-- [ ] **1Password CLI (`op.exe`) — carry the binary, and check the path.**
+- [x] **1Password CLI (`op.exe`) — install it, and check the path.**
       `zsh/.zshrc` both aliases `op` and exports `OP_CLI` to
       `/mnt/c/Users/muzza.khan/bin/op.exe`, and `./scripts/vault` spawns it via
       `$OP_CLI` (an alias is invisible to `execFile`). It is deliberately the
@@ -171,9 +171,19 @@ free opportunity to rotate rather than copy.
       authenticate — SSO accounts have no CLI password flow and the Linux `op`
       in WSL cannot reach the Windows app.
 
+      Nothing installs it — not the Windows 1Password app, not `bootstrap.sh`.
+      Download it from WSL rather than copying it off the old machine (on a
+      fresh rebuild there is nothing to copy from):
+
       ```sh
+      V=$(curl -s https://app-updates.agilebits.com/product_history/CLI2 \
+          | grep -oE 'op_windows_amd64_v[0-9.]+\.zip' | head -1 \
+          | sed 's/op_windows_amd64_v\(.*\)\.zip/\1/')
+      curl -sSL -o /tmp/op.zip \
+          "https://cache.agilebits.com/dist/1P/op2/pkg/v$V/op_windows_amd64_v$V.zip"
       mkdir -p /mnt/c/Users/<your-account>/bin
-      cp /mnt/c/Users/muzza.khan/bin/op.exe /mnt/c/Users/<your-account>/bin/
+      unzip -o -j /tmp/op.zip op.exe -d /mnt/c/Users/<your-account>/bin/
+      op account list   # should list the account; then `op signin` for Windows Hello
       ```
 
       **If the new machine's Windows account is not `muzza.khan`, both the
