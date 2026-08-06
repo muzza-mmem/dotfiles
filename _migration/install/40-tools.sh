@@ -9,18 +9,25 @@
 #
 # zoxide also publishes a .deb, but apt's zoxide is stale and mixing a
 # hand-fetched .deb into apt's database is worse than dropping the static musl
-# binary next to lazygit. zsh/.zshrc runs `zoxide init zsh`, so a missing
-# binary breaks every shell start — it belongs in the bootstrap, not in
-# whatever ad-hoc install put it there the first time.
+# binary next to lazygit. The `zoxide init zsh` line in zsh/.zshrc is currently
+# commented out, so a missing binary would not break shell startup — but `z`
+# and `zi` silently vanish, which is exactly the kind of thing an ad-hoc install
+# gets wrong on a rebuild. It belongs in the bootstrap.
 #
 # herdr has no tarball worth unpacking by hand: its installer picks the right
 # release asset and installs to ~/.local/bin, so we shell out to it.
+#
+# Go goes to ~/.local/go from the upstream tarball, not apt: noble's golang-go
+# trails several major versions. zsh/.zshrc puts ~/.local/go/bin on PATH and
+# `herdr plugin install` only COMPILES a cloned plugin (herdr-plus) when go is
+# on PATH — without it you silently get an upstream prebuilt binary instead.
 #
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 PIPX_APPS=(sqlit-tui sshtunnel)
+GO_INSTALL_DIR="$HOME/.local/go"
 
 install_lazygit() {
 	if have lazygit; then
@@ -106,6 +113,45 @@ install_herdr() {
 	ok "herdr $(herdr --version 2>/dev/null | head -1)"
 }
 
+install_go() {
+	if [[ -x "$GO_INSTALL_DIR/bin/go" ]]; then
+		ok "go already installed ($("$GO_INSTALL_DIR/bin/go" version 2>/dev/null))"
+		return 0
+	fi
+	if [[ $DRY_RUN == 1 ]]; then
+		warn "would install the Go toolchain to $GO_INSTALL_DIR"
+		return 0
+	fi
+	local ver tmp url
+	# go.dev/VERSION?m=text returns the release name on the first line, e.g.
+	# "go1.26.5", followed by a build timestamp we do not want.
+	log "resolving the latest Go release"
+	ver=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)
+	[[ $ver == go[0-9]* ]] || die "could not resolve the latest Go release (got: '$ver')"
+	ok "latest Go release: $ver"
+
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT
+	url="https://go.dev/dl/${ver}.linux-amd64.tar.gz"
+
+	log "downloading $url"
+	curl -fsSL -o "$tmp/go.tar.gz" "$url" || die "failed to download the Go tarball: $url"
+
+	# The tarball's top-level directory is "go", so extract to ~/.local and let
+	# it land as ~/.local/go. A stale tree must go first: Go's tarball is not
+	# self-cleaning and leftovers from an older release break the build cache.
+	log "installing Go to $GO_INSTALL_DIR"
+	rm -rf "$GO_INSTALL_DIR"
+	mkdir -p "$(dirname "$GO_INSTALL_DIR")"
+	tar -xzf "$tmp/go.tar.gz" -C "$(dirname "$GO_INSTALL_DIR")" ||
+		die "failed to extract the Go tarball"
+	[[ -x "$GO_INSTALL_DIR/bin/go" ]] || die "go binary missing after extraction"
+
+	rm -rf "$tmp"
+	trap - EXIT
+	ok "$("$GO_INSTALL_DIR/bin/go" version)"
+}
+
 install_pipx_apps() {
 	if [[ $DRY_RUN == 1 ]]; then
 		warn "would pipx install: ${PIPX_APPS[*]}"
@@ -120,10 +166,15 @@ install_pipx_apps() {
 	*":$HOME/.local/bin:"*) ok "pipx: ~/.local/bin already on PATH" ;;
 	*) pipx ensurepath >/dev/null 2>&1 || true ;;
 	esac
+	# Parse plain `pipx list`, not `pipx list --short`: --short only exists from
+	# pipx 1.1 and the old `|| true` turned an "unrecognized arguments" error
+	# into an empty string, which made every app look absent and re-ran the
+	# install on every pass. The full output carries `package <name> <version>`
+	# lines on every version that matters.
 	local installed app
-	installed=$(pipx list --short 2>/dev/null || true)
+	installed=$(pipx list 2>/dev/null || true)
 	for app in "${PIPX_APPS[@]}"; do
-		if grep -q "^${app} " <<<"$installed"; then
+		if grep -qE "(^|[[:space:]])package ${app} " <<<"$installed"; then
 			ok "pipx app present: $app"
 		else
 			log "pipx install $app"
@@ -135,4 +186,5 @@ install_pipx_apps() {
 install_lazygit
 install_zoxide
 install_herdr
+install_go
 install_pipx_apps

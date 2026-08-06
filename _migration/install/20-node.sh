@@ -19,7 +19,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 FNM_INSTALL_DIR="$HOME/.local/share/fnm"
 FNM_REPO="Schniz/fnm"
 NODE_MAJOR=24
-NPM_GLOBALS=(@anthropic-ai/claude-code confluence-cli corepack)
+# @openai/codex provides the `codex` binary that zsh/.zshrc aliases as `cod`.
+NPM_GLOBALS=(@anthropic-ai/claude-code @openai/codex confluence-cli corepack)
 
 if [[ -x "$FNM_INSTALL_DIR/fnm" ]]; then
 	ok "fnm already installed at $FNM_INSTALL_DIR"

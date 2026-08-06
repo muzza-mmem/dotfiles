@@ -36,15 +36,17 @@ Every module is idempotent — re-running the whole thing on a healthy box is a
 no-op. Completion markers live in `~/.local/state/dotfiles-bootstrap/`; delete
 one to force that module to re-run.
 
-### The first smoke test is expected to fail ~7 checks
+### The first smoke test is expected to fail ~10 checks
 
 `bootstrap.sh` runs `smoke-test.sh` in the same session that just did the
 install, so several checks cannot pass yet. **A perfect first run still reports
-roughly seven failures.** They are:
+roughly ten failures.** They are:
 
 | Check | Why it fails on a first run |
 |---|---|
-| `fnm`, `node`, `npm` not on PATH | `20-node.sh` exported them in its own process; the smoke test is a separate one. A new shell picks them up. |
+| `fnm`, `node`, `npm`, `codex` not on PATH | `20-node.sh` exported them in its own process; the smoke test is a separate one. A new shell picks them up. |
+| `go` not on PATH | Installed to `~/.local/go`; `zsh/.zshrc` is what puts `~/.local/go/bin` on PATH, so it needs a new shell. |
+| `superpowers plugin installed` | The probe shells out to `claude`, which is not on PATH yet for the same reason as `node`. |
 | `docker daemon reachable`, `hello-world runs` | The `docker` group change only applies to a new session (and systemd needs `/etc/wsl.conf` applied). |
 | `exists: ~/.ssh/id_ed25519` | Keys are carried by hand — MIGRATION.md section 2. |
 | `npmrc has a token` | `~/.npmrc` was seeded from a template with the token deliberately blank. |
@@ -60,17 +62,21 @@ make the first run look tidy.
 |---|---|
 | `00-apt.sh` | apt upgrade + all apt packages (incl. headless-Chromium libs) |
 | `10-shell.sh` | oh-my-zsh, zsh as login shell |
-| `20-node.sh` | fnm, node 24, npm globals |
+| `20-node.sh` | fnm, node 24, npm globals (claude, codex, confluence-cli) |
 | `30-docker.sh` | Docker CE, `daemon.json`, docker group |
-| `40-tools.sh` | lazygit, zoxide, herdr, pipx apps |
+| `35-azure.sh` | Azure CLI from Microsoft's apt repo |
+| `40-tools.sh` | lazygit, zoxide, herdr, Go toolchain, pipx apps |
+| `45-claude-plugins.sh` | Claude Code marketplace + the `superpowers` plugin |
 | `50-stow.sh` | Stow every package, seed secret templates |
 | `60-tmux.sh` | tpm + plugins |
 | `70-nvim.sh` | Neovim from upstream tarball, `Lazy! sync` |
 | `80-repos.sh` | Clone `repos.tsv` into `~/code` |
 | `90-wsl.sh` | `/etc/wsl.conf` + Windows `.wslconfig` |
 
-Order matters in two places: `00-apt.sh` precedes everything, and `50-stow.sh`
-must precede `60-tmux.sh` and `70-nvim.sh` (both need their stowed config).
+Order matters in three places: `00-apt.sh` precedes everything, `20-node.sh`
+must precede `45-claude-plugins.sh` (which needs the `claude` CLI), and
+`50-stow.sh` must precede `60-tmux.sh` and `70-nvim.sh` (both need their stowed
+config).
 
 ## Adding a repo
 
@@ -120,10 +126,44 @@ cannot open a session after `wsl --shutdown` (recovery: `wsl -u root -d
 <distro>` from Windows). Edit the `default =` line in `_migration/wsl/wsl.conf`
 to your username and re-run `./bootstrap.sh 90`.
 
+**`35-azure.sh` fails resolving the repo for this Ubuntu codename**
+Microsoft publishes `packages.microsoft.com/repos/azure-cli` per codename and
+sometimes lags a new Ubuntu release. The module detects that and falls back to
+the `jammy` build, which runs fine (azure-cli is pure Python). If both fail,
+apt sources are unreachable — check the network, not the module.
+
+**`45-claude-plugins.sh` cannot install the plugin**
+It only warns, never aborts, because the plugin is not load-bearing for the
+rebuild. Finish the bootstrap, start a new shell so `claude` is on PATH, then
+either re-run `./bootstrap.sh 45` or do it interactively: start `claude` and
+run `/plugin`. `settings.json` already has `superpowers` in `enabledPlugins`,
+so nothing else needs changing once it is installed.
+
+**`go` is missing after a rebuild**
+`40-tools.sh` installs it to `~/.local/go`, and `zsh/.zshrc` is what puts
+`~/.local/go/bin` on PATH — so it only appears in a new zsh session, not in the
+bash process that ran the bootstrap.
+
 **Stow refuses to link a file**
 A real file is in the way. `50-stow.sh` moves conflicts to `<file>.pre-stow`
 automatically, but if it reports a conflict it could not resolve, move the file
 aside by hand and re-run `./bootstrap.sh 50`.
+
+**`50-stow.sh` prints `BUG in find_stowed_path? Absolute/relative mismatch`**
+Harmless noise, not a failure — stow still exits 0 and links everything. The
+cause is the `~/windir -> /mnt/c/Users/<you>` convenience symlink (MIGRATION.md
+section 6): stow walks `$HOME`, follows it out to a path outside the stow dir,
+and complains. noble ships the same stow 2.3.1 as the old box, so the behaviour
+carries over. It cannot happen on a first run, because `~/windir` is created
+*after* the bootstrap — only on later re-runs of module 50. To silence it,
+`mv ~/windir` aside for the duration of the re-run.
+
+**`--dry-run` shows `.claude/skills` being linked as one whole-directory symlink**
+An artefact of the dry run, not what actually happens. `ensure_real_dir` does
+not create the `REAL_DIRS` when `DRY_RUN=1`, so stow still sees them as absent
+and reports the fold it *would* do if they were. On a real run the directories
+are created first and stow links per-file. Do not "fix" this by reading the
+dry-run output as the outcome — check with `smoke-test.sh` after a real run.
 
 **`.wslconfig` changes did nothing**
 It only applies after `wsl --shutdown` from Windows PowerShell — not from

@@ -34,13 +34,22 @@ check_version() { # check_version <cmd>
 		fail=$((fail + 1))
 		return
 	fi
+	# first_line strips leading WARNING/NOTICE chatter before taking line 1 —
+	# `az --version` opens with "WARNING: You have N update(s) available",
+	# which would otherwise be reported as the version string.
+	first_line() { grep -vE '^(WARNING|NOTICE|DEPRECAT)' | grep -m1 . || true; }
+	# `go` has no --version/-V flag at all; it is a `version` subcommand. Try
+	# that too rather than reporting "(version unavailable)" for a healthy tool.
 	if v=$("$cmd" --version 2>&1); then
-		v=$(printf '%s' "$v" | head -1)
+		v=$(printf '%s\n' "$v" | first_line)
 	elif v=$("$cmd" -V 2>&1); then
-		v=$(printf '%s' "$v" | head -1)
+		v=$(printf '%s\n' "$v" | first_line)
+	elif v=$("$cmd" version 2>&1); then
+		v=$(printf '%s\n' "$v" | first_line)
 	else
 		v="(version unavailable)"
 	fi
+	[[ -n $v ]] || v="(version unavailable)"
 	ok "$(printf '%-10s %s' "$cmd" "$v")"
 	pass=$((pass + 1))
 }
@@ -53,7 +62,7 @@ is_symlink_into_repo() { # is_symlink_into_repo <path>
 }
 
 heading "Commands on PATH"
-for c in zsh tmux nvim git gh stow fnm node npm docker lazygit herdr fzf zoxide rg fd jq pipx; do
+for c in zsh tmux nvim git gh stow fnm node npm codex docker az lazygit herdr go fzf zoxide rg fd jq pipx; do
 	check_version "$c"
 done
 
@@ -75,6 +84,12 @@ check "hello-world runs" docker run --rm hello-world
 
 heading "Neovim plugins"
 check "Lazy! check exits clean" nvim --headless "+Lazy! check" +qa
+
+heading "Claude Code plugins"
+# settings.json declares superpowers as enabled; this catches the case where the
+# flag is set but the marketplace checkout was never installed (see 45-*.sh).
+check "superpowers plugin installed" \
+	bash -c 'claude plugin list 2>/dev/null | grep -q superpowers'
 
 heading "Repos"
 manifest="$MIGRATION_DIR/repos.tsv"
