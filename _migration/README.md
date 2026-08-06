@@ -107,11 +107,13 @@ WIN_HOME=/mnt/c/Users/<your-account> ./bootstrap.sh 90
 **`60-tmux.sh` finishes but plugins are missing**
 Install interactively: start `tmux`, then `prefix + I` (capital i).
 
-**Re-running `60-tmux.sh` from inside a tmux session drops the session**
-Plugin install runs a bare `tmux kill-server`, which kills every session on
-the default socket, not just a temporary one. Harmless on a fresh box, but if
-you re-run `./bootstrap.sh 60` later, do it from a plain shell outside tmux —
-not from inside a tmux session.
+**`60-tmux.sh` fails with `no server running on .../default`**
+Fixed on 2026-08-06. The module used a bare `tmux start-server`, which leaves a
+server with no sessions — and `exit-empty` (a server option, default `on`) makes
+it exit the instant it starts, so the next command finds nothing. It now opens a
+detached `tpm-install` session instead, and kills only that session rather than
+running a bare `kill-server`, so re-running it from inside tmux no longer drops
+your own sessions.
 
 **`70-nvim.sh` download 404s**
 The release asset name changed. List real names with
