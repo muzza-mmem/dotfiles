@@ -1,5 +1,9 @@
 {
-  "model": "opus[1m]",
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "opus",
+  "effortLevel": "high",
   "hooks": {
     "Notification": [
       {
@@ -61,12 +65,8 @@
     "superpowers@claude-plugins-official": true
   },
   "viewMode": "default",
-  "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
-  "permissions": {
-    "defaultMode": "bypassPermissions"
-  },
   "theme": "dark",
   "editorMode": "vim"
 }
