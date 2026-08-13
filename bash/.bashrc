@@ -127,3 +127,5 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
 if [ -z "$ZSH_VERSION" ] && [ -t 1 ] && command -v zsh >/dev/null; then
   exec /usr/bin/zsh -l
 fi
+export NODE_EXTRA_CA_CERTS=$HOME/fortinet-ca.pem
+export NODE_EXTRA_CA_CERTS=$HOME/fortinet-ca.pem

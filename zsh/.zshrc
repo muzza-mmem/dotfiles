@@ -166,3 +166,4 @@ alias op='/mnt/c/Users/muzza.khan/bin/op.exe'
 # ./scripts/vault (and anything else using the 1Password CLI non-interactively)
 # needs the path in the environment rather than as an alias.
 export OP_CLI='/mnt/c/Users/muzza.khan/bin/op.exe'
+export NODE_EXTRA_CA_CERTS=$HOME/fortinet-ca.pem
