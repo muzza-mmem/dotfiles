@@ -12,6 +12,28 @@ This applies to text I will read as well as text that leaves the machine. If a
 sentence feels like it needs an em dash, either use a spaced hyphen or rewrite
 it with a comma, colon, or full stop.
 
+## Always distinguish issue numbers from PR numbers
+
+**IMPORTANT:** GitHub issues and pull requests share one numbering space, so a bare
+`#123` is ambiguous. Always qualify which one is meant:
+
+- an issue is **`I#<number>`** - e.g. `I#883`
+- a pull request is **`PR#<number>`** - e.g. `PR#890`
+
+Never write a bare `#<number>` when referring to one specifically. This applies to
+text I will read - chat replies, summaries, status tables - and to text written into
+a file or sent anywhere: commit messages, PR titles and descriptions, issue and PR
+comments, QA plans, Jira tickets, and docs.
+
+**One exception, because these strings are load-bearing.** Where a `#<number>` is
+parsed by a tool rather than read by a person, keep it bare and exactly as the tool
+expects. Most importantly, GitHub's auto-link keywords: write `Closes #883` in a PR
+body verbatim, or the issue will not auto-close on merge. When a PR title needs the
+issue in brackets at the end, use `(I#883)`.
+
+Quoting is not rewriting: if a file, ticket, or log already says `#883`, quote it
+verbatim and let the surrounding sentence supply the `I#` / `PR#` qualifier.
+
 ## Tests are a separate, explicitly-consented phase (TDD)
 
 - **Never write or modify tests as part of implementation work.** Producing or
