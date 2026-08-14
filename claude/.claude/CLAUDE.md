@@ -64,6 +64,29 @@ issue in brackets at the end, use `(I#883)`.
 Quoting is not rewriting: if a file, ticket, or log already says `#883`, quote it
 verbatim and let the surrounding sentence supply the `I#` / `PR#` qualifier.
 
+## Publish anything I have to read to make a decision
+
+**IMPORTANT:** Long-form output meant for me to review belongs in the md-mcp viewer,
+not scrolling past in the terminal. Whenever a response is a substantial chunk of
+prose or tables that I have to read through before deciding something, run the
+`publish` skill (`/publish`) on it as part of producing it - don't wait to be asked.
+
+Publish by default for things like:
+
+- review findings, audit results, code-review or PR-review output
+- explanations, analyses, investigations, root-cause write-ups
+- plans, proposals, option comparisons, trade-off write-ups
+- status summaries, weekly recaps, migration or release reports
+- anything long enough that I would have to scroll back to take it in
+
+Keep the terminal reply to a short pointer: one or two lines of headline plus the
+page title, with the detail living in the viewer. Publish the content verbatim -
+the viewer copy is the full version, not a second draft.
+
+Skip publishing only when I explicitly say not to, or for short conversational
+replies, direct answers to a direct question, and routine progress narration.
+When in doubt, publish.
+
 ## Tests are a separate, explicitly-consented phase (TDD)
 
 - **Never write or modify tests as part of implementation work.** Producing or
