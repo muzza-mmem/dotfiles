@@ -14,7 +14,12 @@ things and then gets out of the way:
    it — don't re-ask for permission to create).
 2. **Hand off to `feature-worktree-workflow` fast-track mode** — run **A → C → D**,
    **skip Phase B** (no `testing` merge, no shared-stack restart). The PR's own CI
-   against `main` is the gate.
+   against the repo's base branch is the gate.
+
+**Base branch:** `$BASE` = `develop` if `origin/develop` exists, else `main` - resolve it
+per `feature-worktree-workflow`'s Conventions and branch/PR against `origin/$BASE`.
+**Never check out or pull `main` on a dev machine**; in a migrated repo it is the
+release/production branch.
 
 ## When to use
 
@@ -60,10 +65,10 @@ Fast-track sequence:
 
 | Phase | What | Reminder |
 |-------|------|----------|
-| A Start | assign issue @me, milestone if part of an epic, branch `<type>/<number>-<slug>` off **main** in a worktree, push, empty scaffold commit, open **WIP draft PR** → main | issue must exist (Step 1 guarantees it); `testing` checked out on MAIN_ROOT |
+| A Start | assign issue @me, milestone if part of an epic, branch `<type>/<number>-<slug>` off **`origin/$BASE`** in a worktree, push, empty scaffold commit, open **WIP draft PR** → `$BASE` (check `baseRefName` - `gh` defaults to the repo default, still `main`) | issue must exist (Step 1 guarantees it); `testing` checked out on MAIN_ROOT |
 | ~~B~~ | **SKIPPED** | no `testing` merge, no stack restart |
-| C Ship | rebase on latest `main`, push, add release note via `append-release-note` **in this same PR**, `gh pr ready`, comment issue summary | |
-| D Teardown | after the **user** merges: pull main, rm worktree + local + remote branch, merge → testing | only after user confirms merge |
+| C Ship | rebase on latest `origin/$BASE`, push, add release note via `append-release-note` **in this same PR**, `gh pr ready`, comment issue summary | |
+| D Teardown | after the **user** merges: `git fetch`, merge `origin/$BASE` → testing, rm worktree + local + remote branch | only after user confirms merge; never check out or pull `main` |
 
 ## Guardrails (inherited — do not skip)
 
@@ -73,6 +78,8 @@ Fast-track sequence:
   attach-only, implementation auto, no boot-verify prompt). Fast-track skips Phase B, so a
   yolo fast-track runs A → C silently and stops only at the Phase C `gh pr ready` handoff.
 - **No issue → no work.** Step 1 must yield a real issue before Phase A.
+- **Base is `origin/$BASE`, never `main`.** Branch off it, target the PR at it, rebase on
+  it. Never check out or pull `main`.
 - **NEVER merge the PR yourself.** "fast track" / "ship" means get the PR ready-for-review
   and hand off. Phase C ends at `gh pr ready`. Phase D only after the user confirms the merge.
 - **Push every commit immediately** on the feature branch; **never push `testing`**.

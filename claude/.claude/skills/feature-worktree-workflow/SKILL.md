@@ -1,6 +1,6 @@
 ---
 name: feature-worktree-workflow
-description: Use when starting, integrating, shipping, or tearing down a feature/issue via the worktree + integration-branch flow — every unit of work is anchored to a GitHub issue, branched off main in a git worktree, tracked by a WIP draft PR, integrated on the `testing` branch, then shipped to main and cleaned up. Trigger on "start a feature", "work this issue", "new worktree", "integrate/merge into testing", "raise/ready the PR", "feature is merged, clean up".
+description: Use when starting, integrating, shipping, or tearing down a feature/issue via the worktree + integration-branch flow - every unit of work is anchored to a GitHub issue, branched off the repo's base branch (`develop` where it exists, else `main`) in a git worktree, tracked by a WIP draft PR, integrated on the `testing` branch, then shipped to that base branch and cleaned up. Trigger on "start a feature", "work this issue", "new worktree", "integrate/merge into testing", "raise/ready the PR", "feature is merged, clean up".
 ---
 
 # Feature worktree workflow
@@ -77,13 +77,37 @@ allowed: if the contract didn't opt into it and it isn't one of the four stops a
 
 ## Conventions & detection
 
+- **BASE = the repo's base branch. RESOLVE IT FIRST, EVERY PHASE - never assume `main`.**
+  Repos are migrating to a `develop`/`main` split (`develop` = integration base,
+  `main` = release/production). The rollout is per-repo and in progress, so detect it
+  rather than hard-coding either name:
+
+  ```bash
+  git fetch origin --prune
+  BASE=develop; git show-ref -q --verify refs/remotes/origin/develop || BASE=main
+  ```
+
+  Everything in this skill that used to say `main` - branch point, PR base, the merge
+  into `testing`, the Phase C rebase - means `origin/$BASE`. Once every repo has
+  `develop`, the detection collapses to a constant and nothing else here changes.
+- **NEVER check out or pull `main` on a developer machine.** In a migrated repo `main`
+  is the release/production branch: it is not a base for work and not something to
+  refresh locally. No `git checkout main`, no `git pull` on `main`, no
+  `git merge origin/main` into a feature or `testing`. If a step seems to need `main`,
+  it needs `origin/$BASE` instead. (Cutting a release is the one main-facing operation,
+  and `cut-release` / `./scripts/release` owns it - it fetches `main` into its own
+  throwaway worktree and never touches your checkout.)
+- **Always work from the freshly-fetched `origin/$BASE`, not a local copy.** Branch,
+  merge, and rebase against the remote-tracking ref (`git fetch origin` first) - do not
+  keep a local `develop` checked out and pulled. This is what keeps the base current.
 - **MAIN_ROOT** = the primary working tree (root repo), not a linked worktree.
   Resolve it the same way the worktree script does:
   `git worktree list --porcelain | awk '/^worktree /{print $2; exit}'`
+  (The name is historical - it means "root repo", not the `main` branch.)
 - **Integration branch** = `testing`. It is long-lived but **disposable** — never the
-  thing you ship. The PR ships the feature onto `main` *alone*. **`testing` is
+  thing you ship. The PR ships the feature onto `origin/$BASE` *alone*. **`testing` is
   local-only — NEVER push it to origin** (no `git push` on `testing`, ever). It exists
-  purely as a local smoke env; origin only ever sees feature branches and `main`.
+  purely as a local smoke env; origin only ever sees feature branches and `$BASE`.
 - **Branch name = the issue.** Format `<type>/<number>-<slug>`, where `<type>` reflects
   the issue kind (`feat` for feature/enhancement, `bug` for defect/fix, `chore` for
   maintenance/tooling — match the issue's labels/type), `<number>` is the issue number,
@@ -96,10 +120,9 @@ allowed: if the contract didn't opt into it and it isn't one of the four stops a
 - **Push every commit immediately.** There is no local-only commit in this flow — after
   every `git commit` **on a feature branch**, `git push` so origin and the draft PR always
   reflect HEAD. (The sole exception is `testing`, which is never pushed — see above.)
-- **Always pull `main` from origin before merging it.** Whenever you merge `main` into
-  anything (`testing` in Phase B, or refreshing for a rebase), update it from origin first
-  (`git pull` on `main`, or `git fetch origin` + merge `origin/main`) — never merge a stale
-  local `main`.
+- **Always `git fetch origin` before merging or rebasing onto the base.** Whenever the base
+  goes into anything (`testing` in Phase B, or a Phase C rebase), fetch first and use
+  `origin/$BASE` - never merge a stale local branch, and never a local `main`.
 - **The issue/PR is the work log.** As work progresses, keep it current — post issue
   comments on meaningful checkpoints/decisions, or keep the PR description's task list
   ticked off. Don't go dark between Start and Ship.
@@ -148,33 +171,41 @@ git -C "$ROOT" symbolic-ref --short HEAD     # must print: testing
 ```
 
 - If it prints `testing` → proceed.
-- If it prints something else (e.g. `staging`, `main`) → **STOP and ask the user.**
+- If it prints something else (e.g. `staging`, `main`, `develop`) → **STOP and ask the user.**
   The normal expectation is that `testing` is checked out on the root repo. Likely
   resolutions to offer:
   - check out the existing `testing` branch on the root, or
-  - if `testing` does not exist, create it from main: `git -C "$ROOT" checkout -b testing main` (or `origin/main`).
+  - if `testing` does not exist, create it from the base:
+    `git -C "$ROOT" fetch origin && git -C "$ROOT" checkout -b testing "origin/$BASE"`.
   Do not silently continue on the wrong branch.
 
-Then create the feature branch **off main** in a worktree (name it from the issue —
-see Conventions) and switch into it:
+Then create the feature branch **off `origin/$BASE`** in a worktree (resolve `BASE` per
+Conventions; name the branch from the issue) and switch into it:
 
 ```
-./scripts/worktree -b <type>/<number>-<slug> main        # preferred if present
+git fetch origin --prune
+BASE=develop; git show-ref -q --verify refs/remotes/origin/develop || BASE=main
+
+./scripts/worktree -b <type>/<number>-<slug> "origin/$BASE"     # preferred if present
 # fallback:
-git worktree add -b <type>/<number>-<slug> "$ROOT/worktrees/<type>-<number>-<slug>" main
+git worktree add -b <type>/<number>-<slug> "$ROOT/worktrees/<type>-<number>-<slug>" "origin/$BASE"
 ```
 
 Switch the agent into the worktree (EnterWorktree tool, or `cd` to the worktree path).
 Then **push the branch and open the WIP draft PR immediately** — bootstrap with an empty
-commit so the branch is one commit ahead of `main` and the PR has a diff to open against:
+commit so the branch is one commit ahead of the base and the PR has a diff to open against:
 
 ```
 git commit --allow-empty -m "chore: scaffold #<number>"
 git push -u origin <type>/<number>-<slug>
-gh pr create --draft --base main \
+gh pr create --draft --base "$BASE" \
   --title "WIP: <issue title>" \
   --body "Closes #<number>"     # auto-links + auto-closes the issue on merge
 ```
+
+**Check the PR's base after creating it** (`gh pr view --json baseRefName`). `gh` defaults
+to the repo's default branch, which in a migrated repo is still `main` - an unset or wrong
+`--base` silently targets the release branch. Fix with `gh pr edit <n> --base "$BASE"`.
 
 **Link Jira? Ask ONLY when the contract allows it (the mirror is optional).** GitHub is
 the source of truth; the AII mirror is optional — some issues live in GitHub only.
@@ -222,7 +253,7 @@ When in doubt about whether the decomposition is genuinely independent, treat it
 unclear: in *Always ask me* mode, ask; in yolo / Auto mode, **default to inline and
 proceed — do not ask.**
 
-> Branch off **main**, never off `testing` — this keeps the eventual PR diff clean.
+> Branch off **`origin/$BASE`**, never off `testing` - this keeps the eventual PR diff clean.
 
 ---
 
@@ -231,11 +262,11 @@ proceed — do not ask.**
 Integration happens on MAIN_ROOT, not in the worktree.
 
 1. Re-run the Phase A `testing` guardrail (`testing` checked out on MAIN_ROOT).
-2. From MAIN_ROOT, **refresh `main` from origin first** (never merge a stale local `main`):
-   `git fetch origin`, then `git merge origin/main` (into testing), then `git merge <branch>`
-   (into testing).
+2. From MAIN_ROOT, **refresh the base from origin first** (never merge a stale local branch,
+   and never `origin/main`): `git fetch origin`, resolve `BASE`, then `git merge "origin/$BASE"`
+   (into testing), then `git merge <branch>` (into testing).
 3. Resolve any conflicts **here** — they're disposable on `testing`. (They do NOT carry
-   to the feature→main PR; keep the feature rebased on main so the PR stays clean.)
+   to the feature→`$BASE` PR; keep the feature rebased on `origin/$BASE` so the PR stays clean.)
 4. Run static checks on MAIN_ROOT — type-check, lint, unit tests. **Then STOP and hand the
    stack restart to the user — do NOT run `qms-start` (or any `start`/`stop`/compose/recreate)
    yourself.** The user controls the single shared local stack and decides when it cycles.
@@ -248,22 +279,23 @@ Integration happens on MAIN_ROOT, not in the worktree.
    portal-core; drop `--qms-only` to also restart portal-core, `--no-watch` to live-tail logs.)
 
 > **`testing` is a smoke env, not the merge gate.** It holds every in-flight feature at
-> once, so a green `testing` does not prove the feature is green on `main` alone — another
-> feature may be masking the issue. The PR's own CI (base = main) is the real gate.
+> once, so a green `testing` does not prove the feature is green on `$BASE` alone - another
+> feature may be masking the issue. The PR's own CI (base = `$BASE`) is the real gate.
 
 ---
 
 ## Phase C — Ship (all issue tasks done, tested OK)
 
 1. Switch to the feature worktree.
-2. **Rebase on latest `main` — mandatory, and the point where conflicts get caught
-   (roadblock — do not skip).** `git fetch origin`, then `git rebase origin/main` on the
-   feature branch — **always run it, even if you think `main` hasn't moved** (the old
-   "rebase only if it has moved" is gone; run it unconditionally). Resolve any conflicts
-   **right here**, before the PR is marked ready (step 4): this is the earliest clean point
-   to surface them, and resolving now stops the PR's base-`main` CI — the real gate — from
-   failing on a conflict later, and stops phantom conflicts leaking into the Phase D
-   `main`→`testing` merge. Then force-push with lease: `git push --force-with-lease`.
+2. **Rebase on latest `origin/$BASE` - mandatory, and the point where conflicts get caught
+   (roadblock - do not skip).** `git fetch origin`, resolve `BASE`, then
+   `git rebase "origin/$BASE"` on the feature branch - **always run it, even if you think
+   the base hasn't moved** (the old "rebase only if it has moved" is gone; run it
+   unconditionally). Resolve any conflicts **right here**, before the PR is marked ready
+   (step 4): this is the earliest clean point to surface them, and resolving now stops the
+   PR's base CI - the real gate - from failing on a conflict later, and stops phantom
+   conflicts leaking into the Phase D `$BASE`→`testing` merge. Then force-push with lease:
+   `git push --force-with-lease`.
    Do **not** proceed to `gh pr ready` until the rebase is clean and pushed.
 3. **Add this release to the notes — in *this* PR, not a follow-up.** Run the
    `append-release-note` skill to add this issue to `docs/releases/<YYYY-MM-DD>.md`,
@@ -281,11 +313,12 @@ Integration happens on MAIN_ROOT, not in the worktree.
    skip this step. Otherwise invoke `jira-sync` — `sync review <number>` — to move the
    AII ticket to **Code Review / Testing** and comment the PR URL on it. Warns and
    continues on failure.
-7. The PR's CI against `main` is the authoritative gate — not the `testing` result.
+7. The PR's CI against `$BASE` is the authoritative gate - not the `testing` result.
+   Re-confirm the PR still targets `$BASE` (`gh pr view --json baseRefName`), not `main`.
 
-**GUARDRAIL (roadblock — do not skip): rebase clean on `origin/main` BEFORE `gh pr ready`.**
-The mandatory `git rebase origin/main` in step 2 is where conflicts are caught early. The PR
-must not be marked ready while the branch is behind `main` or has unresolved conflicts —
+**GUARDRAIL (roadblock - do not skip): rebase clean on `origin/$BASE` BEFORE `gh pr ready`.**
+The mandatory `git rebase "origin/$BASE"` in step 2 is where conflicts are caught early. The
+PR must not be marked ready while the branch is behind the base or has unresolved conflicts  - 
 resolve them on the feature branch here, not at merge time.
 
 **GUARDRAIL (roadblock — do not skip): NEVER merge the PR yourself.** Merging is the
@@ -304,12 +337,18 @@ one time).
 ```
 ROOT=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
 cd "$ROOT"
-git checkout main && git pull           # refresh main
-./scripts/worktree rm <branch>          # or: git worktree remove --force <path>
-git branch -d <branch>                  # worktree rm leaves the local branch — delete it
-git push origin --delete <branch>       # also delete the merged feature branch on origin
-git checkout testing && git merge main  # bring the merged feature into testing (local-only, never pushed)
+git fetch origin --prune                     # refresh the base ref - do NOT check out or pull main
+BASE=develop; git show-ref -q --verify refs/remotes/origin/develop || BASE=main
+git checkout testing && git merge "origin/$BASE"   # bring the merged feature into testing (local-only, never pushed)
+./scripts/worktree rm <branch>               # or: git worktree remove --force <path>
+git branch -d <branch>                       # worktree rm leaves the local branch - delete it
+git push origin --delete <branch>            # also delete the merged feature branch on origin
 ```
+
+The base merge comes **first** so `testing` already contains the merged work - that is what
+lets `git branch -d` succeed instead of refusing. Note there is no `git checkout main` and no
+`git pull` on `main` anywhere in teardown: the merged feature reaches `main` through the
+release flow, not through your machine.
 
 The `Closes #<number>` in the PR body closes the issue automatically on merge — confirm
 it closed (`gh issue view <number>`); close it manually if the link didn't resolve.
@@ -319,14 +358,15 @@ skip this step. Otherwise invoke `jira-sync` — `sync uat <number>` — to move
 ticket to **Ready for UAT** (the flow never sets it to Done; that's a manual step after
 UAT). Warns and continues on failure.
 
-> **Squash-merge drift (watch for this):** if the PR was squash- or rebase-merged, `main`
+> **Squash-merge drift (watch for this):** if the PR was squash- or rebase-merged, `$BASE`
 > gets a NEW commit SHA that never matches the feature commits already sitting in `testing`
-> from Phase B. Merging `main` into `testing` then stacks the squashed commit on top of the
+> from Phase B. Merging the base into `testing` then stacks the squashed commit on top of the
 > originals → duplicated history and recurring phantom conflicts (a wall of
 > `Merge branch '…' into testing` is the symptom). When that cruft accumulates, **reset the
 > integration branch instead of merging**:
-> `git checkout testing && git reset --hard origin/main` (do **not** push — `testing` is
-> never pushed to origin). `testing` is disposable — recreating it from `main` is always safe.
+> `git checkout testing && git reset --hard "origin/$BASE"` (do **not** push - `testing` is
+> never pushed to origin). `testing` is disposable - recreating it from `origin/$BASE` is
+> always safe.
 
 ---
 
@@ -334,13 +374,13 @@ UAT). Warns and continues on failure.
 
 For small, self-contained, low-risk changes — e.g. read-path bug fixes that mirror an
 existing reference impl — the `testing` integration env adds no value: the PR's own CI
-against `main` is the real gate, and `testing` only masks per-feature issues by stacking
+against `$BASE` is the real gate, and `testing` only masks per-feature issues by stacking
 all in-flight work. When the user says **"fast track"** an issue, run **A → C → D** and
 **skip Phase B entirely** — no `testing` merge, no shared-stack restart.
 
-Everything else is unchanged: still anchor to a GitHub issue, branch off `main`, push
-every commit, open the WIP draft PR, add the release note in the *same* PR, and **never
-merge the PR yourself** — Phase C still ends at `gh pr ready` + handoff.
+Everything else is unchanged: still anchor to a GitHub issue, branch off `origin/$BASE`,
+push every commit, open the WIP draft PR, add the release note in the *same* PR, and
+**never merge the PR yourself** - Phase C still ends at `gh pr ready` + handoff.
 
 ---
 
@@ -348,9 +388,9 @@ merge the PR yourself** — Phase C still ends at `gh pr ready` + handoff.
 
 | Phase | Where | Action | Guardrail |
 |-------|-------|--------|-----------|
-| A Start | MAIN_ROOT → worktree | assign issue @me; attach slice/epic milestone (create if it starts a new epic, skip if one-off); branch `<type>/<number>-<slug>` off **main**; push; empty commit; open WIP draft PR → main; **ask: create / link existing / skip Jira** (create+link → **In Progress**; skip → `jira-sync` `skip` writes `Jira: none`) | **issue must exist** (else roadblock); `testing` checked out on root (else roadblock) |
-| B Integrate | MAIN_ROOT (`testing`) | merge main, then feature; run static checks; **hand the restart to the user** (don't auto-boot) | `testing` ≠ merge gate; one shared stack; never restart without consent |
-| C Ship | feature worktree | **rebase on `origin/main` (mandatory — `git fetch` + `git rebase origin/main`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on main BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
-| D Teardown | MAIN_ROOT | pull main, rm worktree + local branch + **remote branch** (`git push origin --delete`), merge→testing; **`jira-sync` `sync uat` → Ready for UAT** (skip if `Jira: none`) | can't rm cwd worktree; watch squash drift; confirm issue closed |
+| A Start | MAIN_ROOT → worktree | resolve `BASE`; assign issue @me; attach slice/epic milestone (create if it starts a new epic, skip if one-off); branch `<type>/<number>-<slug>` off **`origin/$BASE`**; push; empty commit; open WIP draft PR → **`$BASE`** (verify `baseRefName`); **ask: create / link existing / skip Jira** (create+link → **In Progress**; skip → `jira-sync` `skip` writes `Jira: none`) | **issue must exist** (else roadblock); `testing` checked out on root (else roadblock) |
+| B Integrate | MAIN_ROOT (`testing`) | `git fetch`, merge `origin/$BASE`, then feature; run static checks; **hand the restart to the user** (don't auto-boot) | `testing` ≠ merge gate; one shared stack; never restart without consent |
+| C Ship | feature worktree | **rebase on `origin/$BASE` (mandatory - `git fetch` + `git rebase "origin/$BASE"`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on `origin/$BASE` BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
+| D Teardown | MAIN_ROOT | `git fetch`, merge `origin/$BASE`→testing, then rm worktree + local branch + **remote branch** (`git push origin --delete`); **`jira-sync` `sync uat` → Ready for UAT** (skip if `Jira: none`) | **never check out or pull `main`**; can't rm cwd worktree; watch squash drift; confirm issue closed |
 
-**Cross-cutting:** **set the interaction contract ONCE at kickoff and never re-prompt — `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt** · one issue per unit of work · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only — **never push `testing`**) · always pull `main` from origin before merging it · keep the issue/PR as a live work log · **the Jira mirror is optional — Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).
+**Cross-cutting:** **resolve `BASE` (`develop` if `origin/develop` exists, else `main`) at the start of every phase and use `origin/$BASE` - NEVER check out, pull, or merge `main` on a dev machine** · **set the interaction contract ONCE at kickoff and never re-prompt - `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt** · one issue per unit of work · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only - **never push `testing`**) · always `git fetch origin` before merging or rebasing onto the base · keep the issue/PR as a live work log · **the Jira mirror is optional - Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).

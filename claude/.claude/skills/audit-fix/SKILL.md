@@ -20,7 +20,19 @@ so this flow gives the worktree its OWN real dependency state — a clean
 
 - **SKILL_DIR** = the folder holding this file (`~/.claude/skills/audit-fix/`).
   Helper: `"$SKILL_DIR/audit-helpers.sh"`; friction log: `"$SKILL_DIR/friction-log.md"`.
-- **MAIN_ROOT** = the repo's primary working tree:
+- **BASE = the repo's base branch - resolve it, never assume `main`.** Repos are migrating
+  to a `develop`/`main` split (`develop` = integration base, `main` = release/production),
+  one repo at a time:
+
+  ```bash
+  git -C <repo> fetch origin --prune
+  BASE=develop; git -C <repo> show-ref -q --verify refs/remotes/origin/develop || BASE=main
+  ```
+
+  The worktree branch point, the PR base, and any conflict re-resolve against "upstream"
+  all mean `origin/$BASE`. **Never check out or pull `main` on a developer machine** - an
+  audit fix lands on the base branch and reaches `main` through the release flow.
+- **MAIN_ROOT** = the repo's primary working tree (the root repo, not the `main` branch):
   `git -C <repo> worktree list --porcelain | awk '/^worktree /{print $2; exit}'`.
 - **Helper** (`audit-helpers.sh <cmd> <dir> …`) does ONLY the error-prone
   mechanics: `baseline`, `diff`, `check-pkg`, `override`. Everything else
@@ -59,8 +71,9 @@ worktree, always.**
 
 ```bash
 ROOT=$(git -C <repo> worktree list --porcelain | awk '/^worktree /{print $2; exit}')
-git -C "$ROOT" fetch origin
-git -C "$ROOT" worktree add --no-track -b <num>-<slug> "$ROOT/worktrees/<num>-<slug>" origin/main
+git -C "$ROOT" fetch origin --prune
+BASE=develop; git -C "$ROOT" show-ref -q --verify refs/remotes/origin/develop || BASE=main
+git -C "$ROOT" worktree add --no-track -b <num>-<slug> "$ROOT/worktrees/<num>-<slug>" "origin/$BASE"
 cd "$ROOT/worktrees/<num>-<slug>"
 npm install                                   # OWN real node_modules — the whole point
 bash "$SKILL_DIR/audit-helpers.sh" baseline .
@@ -71,11 +84,12 @@ Then bootstrap the draft PR (issue → worktree → draft PR → implement order
 ```bash
 git commit --allow-empty -m "chore: scaffold #<num> audit fix"
 ./scripts/safe-push -u origin HEAD:<num>-<slug>          # -u sets upstream (friction log #6)
-gh pr create --draft --base main \
+gh pr create --draft --base "$BASE" \
   --title "<concise title> (#<num>)" \
   --body "Closes #<num>
 
 Automated npm-audit remediation. Target: <package/advisory>."
+gh pr view --json baseRefName          # must be $BASE - gh defaults to the repo default (main)
 ```
 
 ## Phase 2 · Remediate
@@ -137,7 +151,7 @@ safe-push's own run, the pre-push hook — #7); harmless, just slow.
 
 ```bash
 cd "$ROOT"
-git checkout main && git pull
+git fetch origin --prune                         # refresh the base ref - never check out or pull main
 git worktree remove worktrees/<num>-<slug>       # add --force only if uncommitted & intended
 git branch -D <num>-<slug>
 git push origin --delete <num>-<slug>            # delete the merged remote branch
@@ -159,13 +173,14 @@ next one easier.
 
 | Phase | Where | Action | Guardrail |
 |-------|-------|--------|-----------|
-| 0 Orient | MAIN_ROOT | read friction log; identify target(s)+strategy from issue; status In Progress; assign @me | **issue must exist** |
-| 1 Isolate | MAIN_ROOT → worktree | worktree `--no-track` off origin/main; **clean `npm install`**; baseline; empty commit; `safe-push -u`; draft PR (`Closes #`) | **never symlink node_modules**; first push sets upstream |
+| 0 Orient | MAIN_ROOT | read friction log; resolve `BASE`; identify target(s)+strategy from issue; status In Progress; assign @me | **issue must exist** |
+| 1 Isolate | MAIN_ROOT → worktree | worktree `--no-track` off `origin/$BASE`; **clean `npm install`**; baseline; empty commit; `safe-push -u`; draft PR → `$BASE` (`Closes #`, verify `baseRefName`) | **never symlink node_modules**; first push sets upstream |
 | 2 Remediate | worktree | parent bump OR override + `override` helper; regenerate standalone locks; fix breakage; push each step | plain `npm install` won't apply a new override |
 | 3 Verify | worktree | target cleared + no regression + pr-checks green + scoped lock diff | all four hold before Ship |
 | 4 Ship | worktree | finalise PR body; QA plan on the ISSUE; status Needs Review; **`gh pr ready`** | ready it once done; never merge (human owns merge) |
-| 5 Teardown | MAIN_ROOT | rm worktree + local + remote branch; refresh main; confirm issue closed | can't rm cwd worktree |
+| 5 Teardown | MAIN_ROOT | `git fetch`; rm worktree + local + remote branch; confirm issue closed | can't rm cwd worktree; **never check out or pull `main`** |
 
-**Cross-cutting:** own real node_modules per worktree · one advisory per PR ·
+**Cross-cutting:** **base is `origin/$BASE` (`develop` where it exists, else `main`) - never
+branch off, target, or pull `main`** · own real node_modules per worktree · one advisory per PR ·
 push only via `safe-push` (first push `-u`) · PR starts draft, readied at Ship (`gh pr ready`), never merged by the agent · append new traps
 to the friction log.

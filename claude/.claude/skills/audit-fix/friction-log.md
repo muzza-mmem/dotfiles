@@ -6,6 +6,13 @@ before every run** (Phase 0). When you hit a NEW trap, append a dated entry unde
 
 Seeded 2026-07-09 from `~/code/audit-tools/docs/2026-07-08-audit-fix-hurdles.md`.
 
+> **Base-branch note (2026-08-14).** Entries below were written when `main` was the base
+> branch everywhere, so they say `origin/main` throughout. Read every one of those as
+> **`origin/$BASE`** - the repo's base branch, which is `develop` in the migrated repos
+> (portal-core, portal-qms) and still `main` elsewhere. The commands are otherwise
+> unchanged. Historical entries are left verbatim as a record; **never check out or pull
+> `main` on a dev machine** when applying them.
+
 ## Known traps (read first)
 
 - **[portal-core] Overrides are a no-op against an existing lockfile** — adding a

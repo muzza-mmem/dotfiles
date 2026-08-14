@@ -1,5 +1,33 @@
 # Global working rules
 
+## `develop` is the base branch - never touch `main` on this machine
+
+**IMPORTANT:** Repos are migrating to a `develop` / `main` split: **`develop` is the base
+branch for all development**, and **`main` is release/production only**. `portal-core` and
+`portal-qms` have migrated; the rest follow gradually, so **detect the base per repo rather
+than assuming either name**:
+
+```bash
+git fetch origin --prune
+BASE=develop; git show-ref -q --verify refs/remotes/origin/develop || BASE=main
+```
+
+Then use `origin/$BASE` as the branch point, the PR base, the rebase target, and the thing
+merged into `testing`. Always work from the **freshly fetched remote-tracking ref**, not a
+local copy - that is what keeps the base current.
+
+**Never check out or pull `main` on a developer machine.** No `git checkout main`, no
+`git switch main`, no `git pull` on `main`, no `git merge origin/main` into a feature branch
+or `testing`. If a step appears to need `main`, it needs `origin/$BASE` instead. Work reaches
+`main` through the release flow, never through a local checkout.
+
+**The one exception is cutting a release.** `./scripts/release cut` fetches `main` into its
+own throwaway worktree and never touches your checkout, so it stays main-facing - see the
+`cut-release` skill. Do not promote `develop` to `main` by hand.
+
+This split is being rolled out repo by repo, so the detection above is temporary scaffolding.
+Once every repo has `develop` it resolves to a constant and nothing else has to change.
+
 ## Never use em dashes
 
 **IMPORTANT:** In all written output - documentation, code comments, commit
