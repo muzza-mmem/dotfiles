@@ -21,9 +21,11 @@ local copy - that is what keeps the base current.
 or `testing`. If a step appears to need `main`, it needs `origin/$BASE` instead. Work reaches
 `main` through the release flow, never through a local checkout.
 
-**The one exception is cutting a release.** `./scripts/release cut` fetches `main` into its
-own throwaway worktree and never touches your checkout, so it stays main-facing - see the
-`cut-release` skill. Do not promote `develop` to `main` by hand.
+**The one exception is cutting a release**, which is a repo-script operation, not something
+you do by hand: `./scripts/release cut <type>` fetches `origin main` itself, builds the
+release commit in its own throwaway worktree, and pushes fast-forward-only. It never touches
+your checkout and does not care which branch you are on, so cutting a release still requires
+no local `main`. Do not promote `develop` to `main` by hand.
 
 This split is being rolled out repo by repo, so the detection above is temporary scaffolding.
 Once every repo has `develop` it resolves to a constant and nothing else has to change.

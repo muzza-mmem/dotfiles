@@ -95,8 +95,8 @@ allowed: if the contract didn't opt into it and it isn't one of the four stops a
   refresh locally. No `git checkout main`, no `git pull` on `main`, no
   `git merge origin/main` into a feature or `testing`. If a step seems to need `main`,
   it needs `origin/$BASE` instead. (Cutting a release is the one main-facing operation,
-  and `cut-release` / `./scripts/release` owns it - it fetches `main` into its own
-  throwaway worktree and never touches your checkout.)
+  and `./scripts/release cut` owns it - it fetches `origin main` into its own throwaway
+  worktree and never touches your checkout.)
 - **Always work from the freshly-fetched `origin/$BASE`, not a local copy.** Branch,
   merge, and rebase against the remote-tracking ref (`git fetch origin` first) - do not
   keep a local `develop` checked out and pulled. This is what keeps the base current.
