@@ -131,7 +131,7 @@ accent = "#cba6f7"
 # tmux's new-window is instant (automatic-rename fills the name in).
 prompt_new_tab_name = false
 
-agent_panel_sort = "spaces"
+agent_panel_sort = "priority"
 
 # ── Agent sidebar rows ──────────────────────────────────────────────
 # The default agent row is just ["agent"], so every Claude pane reads
