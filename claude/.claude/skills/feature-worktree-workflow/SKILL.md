@@ -203,9 +203,28 @@ gh pr create --draft --base "$BASE" \
   --body "Closes #<number>"     # auto-links + auto-closes the issue on merge
 ```
 
+**Claim the work in the shared agent ledger - immediately after the draft PR exists.**
+Other agents read this to avoid claiming the same issue or colliding in the same files:
+
+```
+~/.claude/skills/agent-ledger/ledger claim --issue <number> \
+  --branch <type>/<number>-<slug> --pr <pr-number> \
+  --touches <comma-separated paths this work will change>
+```
+
+If `claim` exits non-zero, another agent already holds the issue - **stop and tell the
+user**, naming the holder; do not `--force` past it. If the work needs commits sitting on
+another agent's unmerged branch, branch off **that branch** instead of `origin/$BASE`,
+open the draft PR with `--base <parent-branch>`, and add `--stacked-on <parent-branch>` to
+the claim. The `agent-ledger` skill has the full stacking protocol - read it before
+stacking anything. Keep the entry fresh as you work:
+`ledger update --issue <number> --status wip --note "<short state>"`.
+
 **Check the PR's base after creating it** (`gh pr view --json baseRefName`). `gh` defaults
 to the repo's default branch, which in a migrated repo is still `main` - an unset or wrong
 `--base` silently targets the release branch. Fix with `gh pr edit <n> --base "$BASE"`.
+(For a **stacked** PR the correct base is the parent branch, not `$BASE` - it moves to
+`$BASE` in Phase C once the parent merges.)
 
 **Link Jira? Ask ONLY when the contract allows it (the mirror is optional).** GitHub is
 the source of truth; the AII mirror is optional — some issues live in GitHub only.
@@ -305,16 +324,37 @@ Integration happens on MAIN_ROOT, not in the worktree.
    report on this branch means the release note ships in the same PR — we never open
    a second PR just to add release notes. Skip only when the change genuinely
    warrants no note (pure internal tooling/chore).
-4. **Mark the draft PR ready** (the PR already exists from Phase A): `gh pr ready <number-or-url>`.
+4. **Check the ledger gate - before `gh pr ready`, always:**
+
+   ```
+   ~/.claude/skills/agent-ledger/ledger blockers --issue <number>
+   ```
+
+   - **exit 0** - not stacked, or the parent has merged. If it *was* stacked, un-stack now
+     (re-target the PR at `$BASE`, `git rebase --onto "origin/$BASE" <stacked_at-SHA>`,
+     force-push with lease, then clear `--stacked-on`/`--stacked-at`). See `agent-ledger`.
+   - **exit 1** - still blocked. `ledger update --issue <number> --status waiting --note
+     "on PR#<parent>"`, tell the user plainly which PR is holding this one, and **STOP**.
+     Do not poll, do not ready the PR against the parent branch, and never merge the
+     parent yourself to unblock yourself. Resume when the user says the parent merged.
+   - **exit 2** - the parent was closed unmerged. Re-target at `$BASE`, rebase off
+     `origin/$BASE` keeping whatever parent commits you still need, then continue.
+
+5. **Mark the draft PR ready** (the PR already exists from Phase A): `gh pr ready <number-or-url>`.
    Drop the `WIP:` prefix from the title and make sure the description reflects the final scope.
-5. **Comment on the issue with a summary** of what was done:
+   Then record it: `ledger update --issue <number> --status ready`.
+6. **Comment on the issue with a summary** of what was done:
    `gh issue comment <number> --body "<summary of changes, decisions, anything notable>"`.
-6. **Sync Jira (mirror), unless GH-only:** if the GH issue body has a `Jira: none` line,
+7. **Sync Jira (mirror), unless GH-only:** if the GH issue body has a `Jira: none` line,
    skip this step. Otherwise invoke `jira-sync` — `sync review <number>` — to move the
    AII ticket to **Code Review / Testing** and comment the PR URL on it. Warns and
    continues on failure.
-7. The PR's CI against `$BASE` is the authoritative gate - not the `testing` result.
+8. The PR's CI against `$BASE` is the authoritative gate - not the `testing` result.
    Re-confirm the PR still targets `$BASE` (`gh pr view --json baseRefName`), not `main`.
+
+**GUARDRAIL (roadblock - do not skip): `ledger blockers` must exit non-blocked BEFORE
+`gh pr ready`.** A stacked PR whose parent has not merged stays a draft. Report which PR
+is holding it and stop - never merge the parent yourself to clear your own path.
 
 **GUARDRAIL (roadblock - do not skip): rebase clean on `origin/$BASE` BEFORE `gh pr ready`.**
 The mandatory `git rebase "origin/$BASE"` in step 2 is where conflicts are caught early. The
@@ -343,7 +383,13 @@ git checkout testing && git merge "origin/$BASE"   # bring the merged feature in
 ./scripts/worktree rm <branch>               # or: git worktree remove --force <path>
 git branch -d <branch>                       # worktree rm leaves the local branch - delete it
 git push origin --delete <branch>            # also delete the merged feature branch on origin
+
+~/.claude/skills/agent-ledger/ledger release --issue <number>   # free the claim
 ```
+
+Releasing the ledger entry also unblocks any agent stacked on this branch - their next
+`ledger blockers` returns clear. (Forgetting it is not fatal: the ledger reconciles the
+entry away once the branch and PR are gone.)
 
 The base merge comes **first** so `testing` already contains the merged work - that is what
 lets `git branch -d` succeed instead of refusing. Note there is no `git checkout main` and no
@@ -388,9 +434,9 @@ push every commit, open the WIP draft PR, add the release note in the *same* PR,
 
 | Phase | Where | Action | Guardrail |
 |-------|-------|--------|-----------|
-| A Start | MAIN_ROOT → worktree | resolve `BASE`; assign issue @me; attach slice/epic milestone (create if it starts a new epic, skip if one-off); branch `<type>/<number>-<slug>` off **`origin/$BASE`**; push; empty commit; open WIP draft PR → **`$BASE`** (verify `baseRefName`); **ask: create / link existing / skip Jira** (create+link → **In Progress**; skip → `jira-sync` `skip` writes `Jira: none`) | **issue must exist** (else roadblock); `testing` checked out on root (else roadblock) |
+| A Start | MAIN_ROOT → worktree | resolve `BASE`; assign issue @me; attach slice/epic milestone (create if it starts a new epic, skip if one-off); branch `<type>/<number>-<slug>` off **`origin/$BASE`**; push; empty commit; open WIP draft PR → **`$BASE`** (verify `baseRefName`); **ask: create / link existing / skip Jira** (create+link → **In Progress**; skip → `jira-sync` `skip` writes `Jira: none`); **`ledger claim` the issue** (stacked work: branch off the parent, PR base = parent, `--stacked-on`) | **issue must exist** (else roadblock); `testing` checked out on root (else roadblock); **`ledger claim` conflict = roadblock** |
 | B Integrate | MAIN_ROOT (`testing`) | `git fetch`, merge `origin/$BASE`, then feature; run static checks; **hand the restart to the user** (don't auto-boot) | `testing` ≠ merge gate; one shared stack; never restart without consent |
-| C Ship | feature worktree | **rebase on `origin/$BASE` (mandatory - `git fetch` + `git rebase "origin/$BASE"`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on `origin/$BASE` BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
-| D Teardown | MAIN_ROOT | `git fetch`, merge `origin/$BASE`→testing, then rm worktree + local branch + **remote branch** (`git push origin --delete`); **`jira-sync` `sync uat` → Ready for UAT** (skip if `Jira: none`) | **never check out or pull `main`**; can't rm cwd worktree; watch squash drift; confirm issue closed |
+| C Ship | feature worktree | **rebase on `origin/$BASE` (mandatory - `git fetch` + `git rebase "origin/$BASE"`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), **`ledger blockers` (un-stack if clear; hold + report if blocked)**, `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on `origin/$BASE` AND `ledger blockers` clear BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
+| D Teardown | MAIN_ROOT | `git fetch`, merge `origin/$BASE`→testing, then rm worktree + local branch + **remote branch** (`git push origin --delete`); **`ledger release`**; **`jira-sync` `sync uat` → Ready for UAT** (skip if `Jira: none`) | **never check out or pull `main`**; can't rm cwd worktree; watch squash drift; confirm issue closed |
 
-**Cross-cutting:** **resolve `BASE` (`develop` if `origin/develop` exists, else `main`) at the start of every phase and use `origin/$BASE` - NEVER check out, pull, or merge `main` on a dev machine** · **set the interaction contract ONCE at kickoff and never re-prompt - `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt** · one issue per unit of work · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only - **never push `testing`**) · always `git fetch origin` before merging or rebasing onto the base · keep the issue/PR as a live work log · **the Jira mirror is optional - Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).
+**Cross-cutting:** **resolve `BASE` (`develop` if `origin/develop` exists, else `main`) at the start of every phase and use `origin/$BASE` - NEVER check out, pull, or merge `main` on a dev machine** · **set the interaction contract ONCE at kickoff and never re-prompt - `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt** · one issue per unit of work · **the shared agent ledger is claimed in A, gated in C (`ledger blockers` before `gh pr ready`), released in D - a stacked PR targets its parent branch and stays draft until the parent merges; never merge someone else's PR to unblock yourself (see the `agent-ledger` skill)** · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only - **never push `testing`**) · always `git fetch origin` before merging or rebasing onto the base · keep the issue/PR as a live work log · **the Jira mirror is optional - Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).

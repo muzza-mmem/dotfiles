@@ -1,0 +1,509 @@
+#!/usr/bin/env bash
+# ledger - shared agent ledger for concurrent agents working the same repo.
+#
+# One JSON file per repo under ~/.claude/ledger/, guarded by flock and written
+# via atomic rename, so two agents claiming work in the same second cannot
+# clobber each other. See SKILL.md for the protocol this script serves.
+
+set -euo pipefail
+
+LEDGER_DIR="${CLAUDE_LEDGER_DIR:-$HOME/.claude/ledger}"
+STALE_HOURS="${LEDGER_STALE_HOURS:-24}"
+RECONCILE_TTL="${LEDGER_RECONCILE_TTL:-60}"
+LOCK_WAIT="${LEDGER_LOCK_WAIT:-10}"
+
+PROG=$(basename "$0")
+
+die()  { printf '%s: %s\n' "$PROG" "$*" >&2; exit 3; }
+warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+now()  { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+usage() {
+  cat <<'EOF'
+ledger - shared agent ledger for concurrent agents working the same repo
+
+Usage:
+  ledger list     [--json] [--no-reconcile]
+  ledger show     --issue N [--json]
+  ledger claim    --issue N --branch B [--worktree P] [--pr N] [--agent A]
+                  [--stacked-on BRANCH] [--stacked-at SHA]
+                  [--touches a,b] [--note "..."] [--force]
+  ledger update   --issue N [--branch B] [--worktree P] [--pr N] [--status S]
+                  [--stacked-on BRANCH] [--stacked-at SHA]
+                  [--touches a,b] [--note "..."]
+  ledger blockers --issue N
+  ledger overlaps --touches a,b [--issue N]
+  ledger release  --issue N
+  ledger reconcile
+  ledger path
+
+Statuses:    claimed -> wip -> waiting -> ready   (stale is derived, never stored)
+Exit codes:  0 ok / clear   1 blocked or claim conflict   2 parent abandoned   3 error
+
+Env: CLAUDE_LEDGER_DIR, LEDGER_STALE_HOURS, LEDGER_RECONCILE_TTL, LEDGER_LOCK_WAIT
+EOF
+}
+
+# ---------------------------------------------------------------- repo + paths
+
+resolve_repo() {
+  local url
+  if url=$(git remote get-url origin 2>/dev/null) && [ -n "$url" ]; then
+    url=${url%.git}
+    printf '%s\n' "$url" | sed -E 's#^(https?://[^/]+/|git@[^:]+:|ssh://[^/]+/)##'
+    return
+  fi
+  gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null \
+    || die "not inside a git repo with an origin remote, and gh could not resolve one"
+}
+
+REPO=$(resolve_repo)
+LEDGER_FILE="$LEDGER_DIR/${REPO//\//__}.json"
+LOCK_FILE="$LEDGER_FILE.lock"
+
+default_agent() {
+  local root base
+  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  base=$(basename "$root")
+  printf '%s@%s\n' "$base" "$(hostname -s 2>/dev/null || hostname)"
+}
+
+# ------------------------------------------------------------------ arg parsing
+
+CMD="${1:-}"
+[ -n "$CMD" ] || { usage; exit 3; }
+shift
+
+issue=""; branch=""; worktree=""; pr=""; status=""; agent=""
+stacked_on=""; stacked_at=""; touches=""; note=""
+force=0; as_json=0; no_reconcile=0
+set_branch=0; set_worktree=0; set_pr=0; set_status=0
+set_stacked_on=0; set_stacked_at=0; set_touches=0; set_note=0
+
+need_val() { [ "$2" -ge 2 ] || die "$1 requires a value"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --issue)      need_val "$1" $#; issue="$2"; shift 2 ;;
+    --branch)     need_val "$1" $#; branch="$2"; set_branch=1; shift 2 ;;
+    --worktree)   need_val "$1" $#; worktree="$2"; set_worktree=1; shift 2 ;;
+    --pr)         need_val "$1" $#; pr="$2"; set_pr=1; shift 2 ;;
+    --status)     need_val "$1" $#; status="$2"; set_status=1; shift 2 ;;
+    --agent)      need_val "$1" $#; agent="$2"; shift 2 ;;
+    --stacked-on) need_val "$1" $#; stacked_on="$2"; set_stacked_on=1; shift 2 ;;
+    --stacked-at) need_val "$1" $#; stacked_at="$2"; set_stacked_at=1; shift 2 ;;
+    --touches)    need_val "$1" $#; touches="$2"; set_touches=1; shift 2 ;;
+    --note)       need_val "$1" $#; note="$2"; set_note=1; shift 2 ;;
+    --force)         force=1; shift ;;
+    --json)          as_json=1; shift ;;
+    --no-reconcile)  no_reconcile=1; shift ;;
+    -h|--help)       usage; exit 0 ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+require_issue() {
+  [ -n "$issue" ] || die "--issue is required for '$CMD'"
+  case "$issue" in
+    ''|*[!0-9]*) die "--issue must be a number, got: $issue" ;;
+  esac
+}
+
+# Comma-separated paths -> JSON array, trimmed, de-slashed, de-duplicated.
+touches_json() {
+  # jq -R on empty input emits nothing, not [] - short-circuit so callers
+  # always get valid JSON to hand to --argjson.
+  if [ -z "${1:-}" ]; then printf '[]'; return; fi
+  printf '%s' "$1" | jq -R -c '
+    split(",")
+    | map(gsub("^\\s+|\\s+$"; "") | sub("/+$"; ""))
+    | map(select(length > 0))
+    | unique'
+}
+
+# ---------------------------------------------------------------- file plumbing
+
+acquire_lock() {
+  mkdir -p "$LEDGER_DIR"
+  exec 9>"$LOCK_FILE"
+  flock -w "$LOCK_WAIT" 9 \
+    || die "could not acquire the ledger lock within ${LOCK_WAIT}s ($LOCK_FILE)"
+}
+
+skeleton() {
+  jq -n --arg repo "$REPO" --arg ts "$(now)" \
+    '{repo:$repo, updated:$ts, reconciled:null, entries:[]}'
+}
+
+read_ledger() {
+  if [ ! -f "$LEDGER_FILE" ]; then skeleton; return; fi
+  if ! jq -e 'type == "object" and has("entries")' "$LEDGER_FILE" >/dev/null 2>&1; then
+    local bak="$LEDGER_FILE.corrupt-$(date -u +%Y%m%dT%H%M%SZ)"
+    mv -f "$LEDGER_FILE" "$bak"
+    warn "ledger was unreadable; moved aside to $bak and started a fresh one"
+    skeleton; return
+  fi
+  cat "$LEDGER_FILE"
+}
+
+save_ledger() {
+  mkdir -p "$LEDGER_DIR"
+  local tmp="$LEDGER_FILE.tmp.$$"
+  printf '%s' "$1" | jq --arg ts "$(now)" '.updated = $ts' > "$tmp"
+  mv -f "$tmp" "$LEDGER_FILE"
+}
+
+epoch_of() { date -u -d "$1" +%s 2>/dev/null || echo 0; }
+
+# --------------------------------------------------------------- reconciliation
+
+# Drop entries whose PR merged/closed or whose branch is gone. Never silent.
+reconcile() {
+  local data="$1" last age
+  last=$(printf '%s' "$data" | jq -r '.reconciled // empty')
+  if [ -n "$last" ]; then
+    age=$(( $(date -u +%s) - $(epoch_of "$last") ))
+    if [ "$age" -ge 0 ] && [ "$age" -lt "$RECONCILE_TTL" ]; then
+      printf '%s' "$data"; return
+    fi
+  fi
+
+  local locals remotes have_remote=1
+  locals=$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null || true)
+  if ! remotes=$(git ls-remote --heads origin 2>/dev/null | sed 's#.*refs/heads/##'); then
+    have_remote=0
+    warn "could not reach origin; skipping branch-liveness checks this pass"
+  fi
+
+  local drop_issues=() entry_issue entry_branch entry_pr state
+  while IFS=$'\t' read -r entry_issue entry_branch entry_pr; do
+    [ -n "$entry_issue" ] || continue
+    if [ "$entry_branch" = "-" ]; then entry_branch=""; fi
+    if [ "$entry_pr" = "-" ]; then entry_pr=""; fi
+
+    if [ -n "$entry_pr" ]; then
+      if state=$(gh pr view "$entry_pr" -R "$REPO" --json state -q .state 2>/dev/null); then
+        if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+          warn "reconciled: dropped I#$entry_issue (PR#$entry_pr $state)"
+          drop_issues+=("$entry_issue")
+          continue
+        fi
+      fi
+    fi
+
+    if [ "$have_remote" -eq 1 ] && [ -n "$entry_branch" ]; then
+      if ! printf '%s\n' "$locals"  | grep -qxF "$entry_branch" \
+      && ! printf '%s\n' "$remotes" | grep -qxF "$entry_branch"; then
+        warn "reconciled: dropped I#$entry_issue (branch $entry_branch is gone)"
+        drop_issues+=("$entry_issue")
+        continue
+      fi
+    fi
+  done < <(printf '%s' "$data" | jq -r '
+    def dash: if . == null or . == "" then "-" else . end;
+    .entries[] | [.issue, (.branch | dash), (if .pr then (.pr | tostring) else "-" end)] | @tsv')
+
+  local drops_json="[]"
+  if [ ${#drop_issues[@]} -gt 0 ]; then
+    drops_json=$(printf '%s\n' "${drop_issues[@]}" | jq -R -s -c 'split("\n") | map(select(length>0) | tonumber)')
+  fi
+
+  printf '%s' "$data" | jq --argjson drop "$drops_json" --arg ts "$(now)" \
+    '.entries = (.entries | map(select(.issue as $i | ($drop | index($i)) | not)))
+     | .reconciled = $ts'
+}
+
+load() {
+  acquire_lock
+  local raw new
+  raw=$(read_ledger)
+  if [ "$no_reconcile" -eq 1 ]; then
+    DATA="$raw"
+  else
+    new=$(reconcile "$raw")
+    DATA="$new"
+    [ "$new" = "$raw" ] || save_ledger "$new"
+  fi
+}
+
+entry_of() { printf '%s' "$DATA" | jq --argjson i "$1" '.entries[] | select(.issue == $i)'; }
+
+is_stale() {
+  local hb="$1" age
+  [ -n "$hb" ] || return 1
+  age=$(( $(date -u +%s) - $(epoch_of "$hb") ))
+  [ "$age" -gt $(( STALE_HOURS * 3600 )) ]
+}
+
+# --------------------------------------------------------------------- overlaps
+
+# Entries whose `touches` intersect the given paths (prefix-aware), excluding $2.
+overlapping() {
+  local paths_json="$1" skip="${2:-null}"
+  printf '%s' "$DATA" | jq -c --argjson want "$paths_json" --argjson skip "${skip:-null}" '
+    def norm: sub("/+$"; "");
+    def hits($a; $b): $a as $x | $b as $y
+      | ($x | norm) as $p | ($y | norm) as $q
+      | ($p == $q) or ($p | startswith($q + "/")) or ($q | startswith($p + "/"));
+    .entries[]
+    | select(.issue != $skip)
+    | . as $e
+    | ($e.touches // []) as $t
+    | ($want | map(. as $w | $t | map(hits($w; .)) | any) | any) as $ov
+    | select($ov)
+    | {issue, agent, branch, pr, status, touches}'
+}
+
+print_overlaps() {
+  local paths_json="$1" skip="${2:-null}" found=0 row
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    if [ "$found" -eq 0 ]; then
+      printf 'WARNING: overlaps in-flight work:\n' >&2
+      found=1
+    fi
+    printf '   I#%s (%s, %s, %s)\n      %s\n' \
+      "$(jq -r .issue <<<"$row")" \
+      "$(jq -r .agent <<<"$row")" \
+      "$(jq -r 'if .pr then "PR#\(.pr)" else "no PR" end' <<<"$row")" \
+      "$(jq -r .status <<<"$row")" \
+      "$(jq -r '.touches | join(", ")' <<<"$row")" >&2
+    printf '   consider: --stacked-on %s\n' "$(jq -r .branch <<<"$row")" >&2
+  done < <(overlapping "$paths_json" "$skip")
+  return $(( found == 0 ? 1 : 0 ))
+}
+
+# --------------------------------------------------------------------- commands
+
+cmd_list() {
+  load
+  if [ "$as_json" -eq 1 ]; then printf '%s\n' "$DATA" | jq .; return; fi
+
+  local count
+  count=$(printf '%s' "$DATA" | jq '.entries | length')
+  if [ "$count" -eq 0 ]; then
+    printf 'No agents in flight on %s.\n' "$REPO"
+    return
+  fi
+
+  {
+    printf 'ISSUE\tAGENT\tBRANCH\tPR\tSTATUS\tSTACKED ON\tTOUCHES\n'
+    # jq emits "-" for empties: tab is an IFS whitespace char, so an empty
+    # field would otherwise collapse and shift every column after it.
+    local i a b p s so t hb flag
+    while IFS=$'\t' read -r i a b p s so t hb; do
+      flag=""
+      if [ "$hb" != "-" ] && is_stale "$hb"; then flag=" (stale)"; fi
+      printf 'I#%s\t%s\t%s\t%s\t%s%s\t%s\t%s\n' "$i" "$a" "$b" "$p" "$s" "$flag" "$so" "$t"
+    done < <(printf '%s' "$DATA" | jq -r '
+      def dash: if . == null or . == "" then "-" else . end;
+      .entries[] | [
+        .issue, (.agent | dash), (.branch | dash),
+        (if .pr then "PR#\(.pr)" else "-" end),
+        (.status | dash), (.stacked_on | dash),
+        ((.touches // []) | join(", ") | dash), (.heartbeat | dash)
+      ] | @tsv')
+  } | { column -t -s $'\t' 2>/dev/null || cat; }
+}
+
+cmd_show() {
+  require_issue; load
+  local e; e=$(entry_of "$issue")
+  [ -n "$e" ] || die "no ledger entry for I#$issue"
+  if [ "$as_json" -eq 1 ]; then printf '%s\n' "$e" | jq .; return; fi
+  printf '%s\n' "$e" | jq -r '
+    "I#\(.issue)  \(.status)",
+    "  agent      \(.agent)",
+    "  branch     \(.branch)",
+    "  worktree   \(.worktree // "-")",
+    "  pr         \(if .pr then "PR#\(.pr)" else "-" end)",
+    "  stacked on \(.stacked_on // "-")\(if .stacked_at then " @ \(.stacked_at[0:12])" else "" end)",
+    "  touches    \((.touches // []) | if length == 0 then "-" else join(", ") end)",
+    "  note       \(if (.note // "") == "" then "-" else .note end)",
+    "  claimed    \(.claimed)",
+    "  heartbeat  \(.heartbeat)"'
+}
+
+cmd_claim() {
+  require_issue
+  [ -n "$branch" ] || die "--branch is required for 'claim'"
+  [ -n "$agent" ] || agent=$(default_agent)
+  [ -n "$worktree" ] || worktree=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+  load
+
+  local existing holder
+  existing=$(entry_of "$issue")
+  if [ -n "$existing" ]; then
+    holder=$(printf '%s' "$existing" | jq -r .agent)
+    if [ "$holder" != "$agent" ] && [ "$force" -eq 0 ]; then
+      printf '%s: I#%s is already claimed by %s (%s, %s).\n' \
+        "$PROG" "$issue" "$holder" \
+        "$(printf '%s' "$existing" | jq -r .branch)" \
+        "$(printf '%s' "$existing" | jq -r .status)" >&2
+      printf '  stack on it with --stacked-on %s, or override with --force.\n' \
+        "$(printf '%s' "$existing" | jq -r .branch)" >&2
+      exit 1
+    fi
+  fi
+
+  local tj; tj=$(touches_json "$touches")
+  [ "$(printf '%s' "$tj" | jq 'length')" -eq 0 ] || print_overlaps "$tj" "$issue" || true
+
+  # A stacked claim records the parent tip SHA so the un-stack rebase survives
+  # origin deleting the parent branch on merge.
+  if [ -n "$stacked_on" ] && [ -z "$stacked_at" ]; then
+    stacked_at=$(git rev-parse "$stacked_on" 2>/dev/null || true)
+    [ -n "$stacked_at" ] || warn "could not resolve $stacked_on to a SHA; --stacked-at is unset"
+  fi
+
+  local ts; ts=$(now)
+  local entry
+  entry=$(jq -n \
+    --argjson issue "$issue" --arg agent "$agent" --arg branch "$branch" \
+    --arg worktree "$worktree" --arg pr "$pr" \
+    --arg stacked_on "$stacked_on" --arg stacked_at "$stacked_at" \
+    --argjson touches "$tj" --arg note "$note" --arg ts "$ts" '
+    {
+      issue: $issue, agent: $agent, branch: $branch, worktree: $worktree,
+      pr: (if $pr == "" then null else ($pr | tonumber) end),
+      status: "claimed",
+      stacked_on: (if $stacked_on == "" then null else $stacked_on end),
+      stacked_at: (if $stacked_at == "" then null else $stacked_at end),
+      touches: $touches, note: $note, claimed: $ts, heartbeat: $ts
+    }')
+
+  DATA=$(printf '%s' "$DATA" | jq --argjson e "$entry" \
+    '.entries = ((.entries | map(select(.issue != $e.issue))) + [$e] | sort_by(.issue))')
+  save_ledger "$DATA"
+
+  printf 'claimed I#%s as %s on %s' "$issue" "$agent" "$branch"
+  if [ -n "$stacked_on" ]; then printf ' (stacked on %s)' "$stacked_on"; fi
+  printf '\n'
+}
+
+cmd_update() {
+  require_issue; load
+  local e; e=$(entry_of "$issue")
+  [ -n "$e" ] || die "no ledger entry for I#$issue - claim it first"
+
+  if [ "$set_status" -eq 1 ]; then
+    case "$status" in
+      claimed|wip|waiting|ready) ;;
+      *) die "invalid --status '$status' (claimed|wip|waiting|ready)" ;;
+    esac
+  fi
+
+  local tj="[]"
+  if [ "$set_touches" -eq 1 ]; then tj=$(touches_json "$touches"); fi
+
+  DATA=$(printf '%s' "$DATA" | jq \
+    --argjson i "$issue" --arg ts "$(now)" \
+    --arg branch "$branch"       --argjson sb "$set_branch" \
+    --arg worktree "$worktree"   --argjson sw "$set_worktree" \
+    --arg pr "$pr"               --argjson sp "$set_pr" \
+    --arg status "$status"       --argjson ss "$set_status" \
+    --arg son "$stacked_on"      --argjson sso "$set_stacked_on" \
+    --arg sat "$stacked_at"      --argjson ssa "$set_stacked_at" \
+    --argjson touches "$tj"      --argjson st "$set_touches" \
+    --arg note "$note"           --argjson sn "$set_note" '
+    .entries = (.entries | map(
+      if .issue == $i then
+          (if $sb  == 1 then .branch     = $branch   else . end)
+        | (if $sw  == 1 then .worktree   = $worktree else . end)
+        | (if $sp  == 1 then .pr         = (if $pr == "" then null else ($pr | tonumber) end) else . end)
+        | (if $ss  == 1 then .status     = $status   else . end)
+        | (if $sso == 1 then .stacked_on = (if $son == "" then null else $son end) else . end)
+        | (if $ssa == 1 then .stacked_at = (if $sat == "" then null else $sat end) else . end)
+        | (if $st  == 1 then .touches    = $touches  else . end)
+        | (if $sn  == 1 then .note       = $note     else . end)
+        | .heartbeat = $ts
+      else . end))')
+  save_ledger "$DATA"
+  printf 'updated I#%s\n' "$issue"
+}
+
+cmd_blockers() {
+  require_issue; load
+  local e; e=$(entry_of "$issue")
+  [ -n "$e" ] || die "no ledger entry for I#$issue - claim it first"
+
+  local parent; parent=$(printf '%s' "$e" | jq -r '.stacked_on // empty')
+  if [ -z "$parent" ]; then
+    printf 'I#%s is not stacked - clear to open/ready its PR.\n' "$issue"
+    return 0
+  fi
+
+  local pe; pe=$(printf '%s' "$DATA" | jq -c --arg b "$parent" '.entries[] | select(.branch == $b)')
+  if [ -n "$pe" ]; then
+    printf 'I#%s is BLOCKED on %s - I#%s (%s, %s, %s).\n' \
+      "$issue" "$parent" \
+      "$(jq -r .issue <<<"$pe")" "$(jq -r .agent <<<"$pe")" \
+      "$(jq -r 'if .pr then "PR#\(.pr)" else "no PR" end' <<<"$pe")" \
+      "$(jq -r .status <<<"$pe")"
+    printf 'Hold the PR: set --status waiting, report, and stop.\n'
+    return 1
+  fi
+
+  # No live entry for the parent. Merged (good) or closed unmerged (abandoned)?
+  local pr_state merged
+  if pr_state=$(gh pr list -R "$REPO" --head "$parent" --state all \
+                  --limit 1 --json state,mergedAt -q '.[0].state' 2>/dev/null) \
+     && [ -n "$pr_state" ]; then
+    merged=$(gh pr list -R "$REPO" --head "$parent" --state all \
+               --limit 1 --json mergedAt -q '.[0].mergedAt' 2>/dev/null || true)
+    if [ "$pr_state" = "CLOSED" ] && { [ -z "$merged" ] || [ "$merged" = "null" ]; }; then
+      printf 'Parent %s was CLOSED without merging - it is ABANDONED, not blocked.\n' "$parent"
+      printf 'Re-target this PR at the base branch and rebase off the base instead.\n'
+      return 2
+    fi
+  fi
+
+  printf 'Parent %s is no longer in flight (merged or released) - clear to un-stack.\n' "$parent"
+  return 0
+}
+
+cmd_overlaps() {
+  [ "$set_touches" -eq 1 ] || die "--touches is required for 'overlaps'"
+  load
+  local tj skip="null"
+  tj=$(touches_json "$touches")
+  if [ -n "$issue" ]; then skip="$issue"; fi
+  if print_overlaps "$tj" "$skip"; then
+    exit 1
+  fi
+  printf 'No in-flight work overlaps those paths.\n'
+}
+
+cmd_release() {
+  require_issue; load
+  local e; e=$(entry_of "$issue")
+  [ -n "$e" ] || { printf 'no ledger entry for I#%s - nothing to release.\n' "$issue"; return 0; }
+  DATA=$(printf '%s' "$DATA" | jq --argjson i "$issue" '.entries = (.entries | map(select(.issue != $i)))')
+  save_ledger "$DATA"
+  printf 'released I#%s\n' "$issue"
+}
+
+cmd_reconcile() {
+  acquire_lock
+  local raw new
+  raw=$(read_ledger)
+  new=$(printf '%s' "$raw" | jq '.reconciled = null')   # force a full pass
+  new=$(reconcile "$new")
+  save_ledger "$new"
+  printf 'reconciled %s (%s entries in flight)\n' "$REPO" "$(printf '%s' "$new" | jq '.entries | length')"
+}
+
+case "$CMD" in
+  list)      cmd_list ;;
+  show)      cmd_show ;;
+  claim)     cmd_claim ;;
+  update)    cmd_update ;;
+  blockers)  cmd_blockers ;;
+  overlaps)  cmd_overlaps ;;
+  release)   cmd_release ;;
+  reconcile) cmd_reconcile ;;
+  path)      printf '%s\n' "$LEDGER_FILE" ;;
+  help)      usage ;;
+  *)         die "unknown command '$CMD' (try: $PROG help)" ;;
+esac
