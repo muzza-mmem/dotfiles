@@ -1,9 +1,8 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "auto"
   },
   "model": "opus",
-  "effortLevel": "high",
   "hooks": {
     "Notification": [
       {
@@ -65,6 +64,7 @@
     "superpowers@claude-plugins-official": true
   },
   "viewMode": "default",
+  "effortLevel": "high",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
