@@ -1,6 +1,6 @@
 ---
 name: answer-review
-description: Use when an automated review bot has reviewed and autofixed a PR you implemented, and you need to work through its findings - "/answer-review", "answer the bot review", "respond to the review comments", "triage the autofixes", "did the bot get this right". Judges each finding and each applied fix, pushes back where the bot is wrong, applies counter-fixes, and replies in-thread with an explicit verdict per comment. HARD FAILS unless run in the session that implemented the PR.
+description: Use when an automated review bot has reviewed and autofixed a PR you implemented, and you need to work through its findings - "/answer-review", "answer the bot review", "respond to the review comments", "triage the autofixes", "did the bot get this right". Decides a verdict on every finding and every applied fix itself - never asking the user which to push back on - names which were its own oversight and which the bot got wrong, recommends the action, applies counter-fixes once approved, and replies in-thread with an explicit verdict per comment. HARD FAILS unless run in the session that implemented the PR.
 ---
 
 # Answer Review
@@ -16,6 +16,11 @@ hold, and reply in-thread so each comment carries an explicit verdict.
 session that did not write the code can only read the bot's reasoning and nod along,
 which produces exactly the "good catch, fixed!" theatre this skill exists to prevent.
 That is why the gate below is a hard failure and not a warning.
+
+**Corollary:** *you* make the calls. The user has not read the bot's findings, the diff,
+or the reasoning behind the implementation - you have all three. So arrive with verdicts,
+say which findings were your own oversight and which the bot got wrong, and recommend the
+action. The user's role is to approve or override, once, at step 6.
 
 Pairs with `review-pr`, which is the same exchange from the reviewer's side.
 
@@ -138,8 +143,17 @@ the symptom. Read the diff.
 
 ### 5. Judge - one verdict per finding
 
-Invoke `superpowers:receiving-code-review` and hold to its posture. Three rules on top
-of it, and they are hard constraints:
+Invoke `superpowers:receiving-code-review` and hold to its posture.
+
+**You decide every verdict yourself. Never ask the user which findings to push back
+on.** You hold what they do not: the requirement this PR was built against, the code you
+wrote, and the decisions you made along the way with their reasons. That is the entire
+point of the gate in step 1. Asking "which of these should I push back on?" hands the
+judgement to the only person in the room who cannot make it - that is a skill failure,
+not caution. At step 6 the user approves or overrides a recommendation you have already
+made; they never supply it.
+
+Four more rules on top of that posture, and they are hard constraints:
 
 - **Never agree without naming the mechanism.** If your reply cannot state the specific
   line or control-flow path that makes the finding true, your verdict is not "accept" -
@@ -149,6 +163,8 @@ of it, and they are hard constraints:
   same kind. Name whichever one you catch yourself doing.
 - **Judge the finding and the fix separately.** "The defect is real but the fix is
   wrong" is one of the most common outcomes and needs saying explicitly.
+- **Attribute every finding.** A verdict without "whose miss was this" is half an
+  answer - see 5a.
 
 The five verdicts:
 
@@ -174,25 +190,58 @@ The five verdicts:
 scope. It never fires on its own: propose it, and only file the GitHub issue if the
 user says yes.
 
-### 6. Show the triage table and STOP
+### 5a. Attribution - name whose miss each finding was
 
-Present the verdicts and wait for approval. Nothing is pushed and nothing is posted
-before the user answers.
+The verdict alone does not tell the user what they need to know. For every finding also
+state, in one clause, which of these it is:
+
+- **My oversight** - the bot is right and I got it wrong. Say what I missed. Do not
+  soften it and do not pad it with justification.
+- **Bot is wrong on the code** - the finding does not hold: the mechanism it describes
+  cannot happen. Name the line or control-flow path that makes it wrong.
+- **Bot lacked context** - the code is deliberate and the reason is invisible from the
+  diff: a requirement in the issue, a constraint elsewhere in the codebase, a decision
+  made earlier in this session. State the reason. This is the class of pushback *only*
+  this session can make, so it is the most valuable thing the skill produces - and the
+  reason goes into a code comment as well, so the next reviewer does not re-raise it.
+- **Bot's fix causes a problem** - the finding is real but the applied change regresses
+  something, breaks a caller, or fixes the symptom at the wrong layer. Say what it
+  breaks.
+- **Neither** - a judgement call with no right answer (naming, layering, style). Say so
+  plainly, pick one, give the reason in a sentence.
+
+Then a recommendation, phrased as a decision rather than an option: what happens to this
+finding, and what you will change if the user approves.
+
+### 6. Show the recommendations and STOP
+
+Present *your decisions* and wait for approval. Nothing is pushed and nothing is posted
+before the user answers. Every row is already decided - no blanks, no options, nothing
+for the user to fill in.
 
 ```
 ## Triage - PR#<n>, <k> findings
 
-| # | File | Sev | Bot's claim | Bot fixed? | Verdict | Why | Code change |
-|---|------|-----|-------------|-----------|---------|-----|-------------|
-| 1 | ad.service.ts:442 | Minor | <one line> | ✅ | Replace fix | <one line> | yes |
-| 2 | ...                                                                     |
+| # | File | Sev | Bot's claim | Bot fixed? | Whose miss | Verdict | Why | Code change |
+|---|------|-----|-------------|-----------|------------|---------|-----|-------------|
+| 1 | ad.service.ts:442 | Minor | <one line> | ✅ | My oversight | Accept | <one line> | no |
+| 2 | pc.controller.ts:88 | Major | <one line> | ✅ | Bot lacked context | Push back | I#883 requires the null | revert hunk |
 ```
+
+Under the table, in prose, the two things the user actually reads:
+
+- **What I got wrong** - every My-oversight finding, one line each, plainly.
+- **What I am pushing back on and why** - each pushback with its reason, calling out
+  first the ones where leaving the bot's change in would cause a problem.
 
 Then ask, in one `AskUserQuestion` call:
 
-1. **Proceed** (single, header `Proceed`) - "Act on these verdicts?" with options
+1. **Proceed** (single, header `Proceed`) - "Act on my verdicts?" with options
    **Yes, all**, **Yes, but let me override some**, **No, stop**.
 2. If any verdict is Defer, a second question confirming whether to file the issues.
+
+That is the only question. Do not ask the user to choose verdicts, to pick which
+findings to push back on, or to confirm findings one at a time.
 
 If the user overrides a verdict, take the override, redo any code change it implies,
 and re-show the table. This gate exists because pushing to a shared branch and posting
@@ -287,6 +336,12 @@ any finding was deferred, name the issue numbers as `I#<n>`.
   change is a claim.
 - **Replying "good catch, fixed" with no mechanism.** If you cannot name the line that
   makes it true, you have not decided yet.
+- **Asking the user which findings to push back on.** They do not have the
+  implementation context; you do. Decide, then present the decision for approval.
+- **Presenting the triage as a menu.** Undecided rows, "what do you think?", or a
+  question per finding all hand the judgement back.
+- **Burying your own misses.** Every My-oversight finding gets named in the prose above
+  the table, not left to be spotted in a cell.
 - **Reflexively defending your own code.** The mirror image of the same failure.
 - **Judging the finding and the fix as one thing.** "Real defect, wrong fix" is common
   and needs saying.
