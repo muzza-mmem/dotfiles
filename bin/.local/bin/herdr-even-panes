@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# herdr-even-panes - give every pane in the current herdr tab an equal share,
+# the way `prefix + =` (select-layout even-horizontal) does in tmux.
+#
+# herdr has no equalize action of its own: prefix+r resize mode nudges one split
+# at a time. But its socket API exposes the layout tree (layout.export) and lets
+# a split's ratio be set outright (layout.set_split_ratio), so "even" is just a
+# ratio per split: weight each one by how many panes sit on either side of it and
+# every pane ends up with the same share, however the splits are nested.
+#
+#   herdr-even-panes            even out the tab this pane is in
+#   herdr-even-panes <tab-id>   even out a named tab, e.g. wA:tH
+#
+set -euo pipefail
+
+die() {
+	printf 'herdr-even-panes: %s\n' "$*" >&2
+	exit 1
+}
+
+# One request in, one response line out. The socket serves a single request per
+# connection (pipelining a second one on the same connection resets it), so
+# every call here opens its own.
+herdr_api() {
+	printf '%s\n' "$1" | timeout 5 nc -UN "$SOCKET" | head -1
+}
+
+case "${1:-}" in
+--help | -h)
+	sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'
+	exit 0
+	;;
+esac
+
+SOCKET=${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}
+[[ -S $SOCKET ]] || die "not inside herdr (no socket at $SOCKET)"
+
+# A keybinding's shell command is told which tab was focused when the key was
+# pressed, and a shell running inside a pane knows its own tab. With neither,
+# an empty layout.export targets whichever tab currently has focus, which is
+# the same tab either of those would have named.
+TAB=${1:-${HERDR_ACTIVE_TAB_ID:-${HERDR_TAB_ID:-}}}
+target='{}'
+[[ -z $TAB ]] || target=$(printf '{"tab_id":"%s"}' "$TAB")
+
+layout=$(herdr_api "{\"id\":\"export\",\"method\":\"layout.export\",\"params\":$target}")
+[[ -n $layout ]] || die "no answer from the herdr server"
+if err=$(jq -r '.error.message // empty' <<<"$layout"); [[ -n $err ]]; then
+	die "layout.export failed: $err"
+fi
+TAB=$(jq -r '.result.layout.tab_id' <<<"$layout")
+
+# Walk the tree and emit a set_split_ratio request per split. The path is the
+# route down from the root: false takes the first branch, true the second.
+requests=$(jq -c --arg tab "$TAB" '
+	def panes: if .type == "pane" then 1 else (.first | panes) + (.second | panes) end;
+	def splits($path):
+		if .type == "split" then
+			{ id: "even", method: "layout.set_split_ratio", params: {
+				tab_id: $tab,
+				path: $path,
+				ratio: ((.first | panes) / (panes)),
+			} },
+			(.first  | splits($path + [false])),
+			(.second | splits($path + [true]))
+		else empty end;
+	.result.layout.root | splits([])
+' <<<"$layout")
+
+[[ -n $requests ]] || exit 0 # a single pane is already even
+
+while IFS= read -r request; do
+	response=$(herdr_api "$request")
+	[[ -n $response ]] || die "no answer from the herdr server"
+	if err=$(jq -r '.error.message // empty' <<<"$response"); [[ -n $err ]]; then
+		die "layout.set_split_ratio failed: $err"
+	fi
+done <<<"$requests"

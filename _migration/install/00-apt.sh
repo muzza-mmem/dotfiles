@@ -21,7 +21,7 @@ apt_install \
 	ca-certificates curl wget unzip gnupg build-essential \
 	git gh \
 	zsh tmux stow \
-	jq htop tree nmap pandoc mkcert screen \
+	jq htop tree nmap netcat-openbsd pandoc mkcert screen \
 	ripgrep fd-find fzf zoxide pipx shellcheck
 
 log "headless Chromium runtime (fonts + libs)"

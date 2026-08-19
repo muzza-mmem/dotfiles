@@ -88,9 +88,17 @@ navigate_pane_up = "k"
 navigate_pane_right = "l"
 
 # No herdr equivalent for these tmux bindings:
-#   bind = select-layout even-horizontal   (herdr has resize mode only)
 #   bind V/H move-pane, bind {/} swap-pane, bind o rotate-window
 #   bind -n C-S-Left/Right swap-window     (tabs cannot be reordered by key)
+
+# tmux: bind = select-layout even-horizontal. herdr has no equalize action of
+# its own (prefix+r resize mode only nudges one split at a time), so the key
+# runs a helper that rewrites every split ratio in the tab over the socket API.
+[[keys.command]]
+key = "prefix+="
+type = "shell"
+command = "herdr-even-panes"
+description = "even out the panes in this tab"
 
 # ── Plugin actions: cloudmanic.herdr-plus ───────────────────────────
 # Installed with `herdr plugin install cloudmanic/herdr-plus`. Projects are

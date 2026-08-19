@@ -68,12 +68,12 @@ This stows to `~/.config/tmux/tmux.conf`. Only fall back to placing a file direc
 
 ### Current contents
 
-Inventory as of 2026-08-04 (89 tracked files). Stow packages:
+Inventory as of 2026-08-19 (96 tracked files). Stow packages:
 
 | Package | Stows to | Contents |
 |---|---|---|
 | `bash/` | `~/.bashrc` | Bash rc; sources `~/.config/secrets` (untracked). |
-| `bin/` | `~/.local/bin/` | Personal scripts: `ss` (ssh to a portal env), `ad-start`/`ad-stop`, `qms-start`/`qms-stop`, `dps`, `hp`, `docker-cleanup`. |
+| `bin/` | `~/.local/bin/` | Personal scripts: `ss` (ssh to a portal env), `ad-start`/`ad-stop`, `qms-start`/`qms-stop`, `dps`, `hp`, `herdr-even-panes`, `docker-cleanup`. |
 | `claude/` | `~/.claude/` | Claude Code config: `CLAUDE.md`, `settings.json`, `keybindings.json`, `statusline-command.sh`, `hooks/`, and `skills/` (audit-fix, cleanup, fast-track, feature-worktree-workflow, jira-sync, myweek, pdf, pickup-work, publish, review-pr, seed-release-docs, ss). Allowlisted in `.gitignore` — see the public-repo section. |
 | `git/` | `~/.config/git/config` | Git identity and the `gh` credential helper. |
 | `herdr/` | `~/.config/herdr/` | herdr `config.toml` plus herdr-plus per-project TOMLs. |
