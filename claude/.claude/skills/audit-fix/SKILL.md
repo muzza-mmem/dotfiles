@@ -138,7 +138,18 @@ safe-push's own run, the pre-push hook — #7); harmless, just slow.
 2. **Post the QA test plan as a comment on the ISSUE** (not the PR — CLAUDE.md
    step 13): `gh issue comment <num> --body "<test plan>"`.
 3. `./scripts/update-issue-status <num> "Needs Review"`.
-4. **Mark the PR READY as soon as it's done: `gh pr ready <num>`.** All four Verify
+4. **Label it `no-review-bot` FIRST, while it is still a draft.** An audit fix is a
+   dependency/lockfile change - there is nothing for a review agent to review, and Verify
+   is already an objective, automated bar. Do this **before** step 5: agents pick a PR up
+   the moment it leaves draft.
+
+   ```bash
+   gh label create no-review-bot --color ededed \
+     --description "Skip automated AI review" 2>/dev/null || true
+   gh pr edit <num> --add-label no-review-bot
+   ```
+
+5. **Mark the PR READY as soon as it's done: `gh pr ready <num>`.** All four Verify
    gates have passed, so an audit-fix PR flips out of draft the moment Ship completes
    — do NOT leave it a draft. **Never `gh pr merge`, though — the human still owns the
    merge.** Report the PR URL and hand off.
@@ -177,10 +188,10 @@ next one easier.
 | 1 Isolate | MAIN_ROOT → worktree | worktree `--no-track` off `origin/$BASE`; **clean `npm install`**; baseline; empty commit; `safe-push -u`; draft PR → `$BASE` (`Closes #`, verify `baseRefName`) | **never symlink node_modules**; first push sets upstream |
 | 2 Remediate | worktree | parent bump OR override + `override` helper; regenerate standalone locks; fix breakage; push each step | plain `npm install` won't apply a new override |
 | 3 Verify | worktree | target cleared + no regression + pr-checks green + scoped lock diff | all four hold before Ship |
-| 4 Ship | worktree | finalise PR body; QA plan on the ISSUE; status Needs Review; **`gh pr ready`** | ready it once done; never merge (human owns merge) |
+| 4 Ship | worktree | finalise PR body; QA plan on the ISSUE; status Needs Review; **`no-review-bot` label, then `gh pr ready`** | label before ready; ready it once done; never merge (human owns merge) |
 | 5 Teardown | MAIN_ROOT | `git fetch`; rm worktree + local + remote branch; confirm issue closed | can't rm cwd worktree; **never check out or pull `main`** |
 
 **Cross-cutting:** **base is `origin/$BASE` (`develop` where it exists, else `main`) - never
 branch off, target, or pull `main`** · own real node_modules per worktree · one advisory per PR ·
-push only via `safe-push` (first push `-u`) · PR starts draft, readied at Ship (`gh pr ready`), never merged by the agent · append new traps
+push only via `safe-push` (first push `-u`) · PR starts draft, labelled `no-review-bot` then readied at Ship (`gh pr ready`), never merged by the agent · append new traps
 to the friction log.

@@ -5,14 +5,17 @@ description: Use when the user runs /fast-track (or says "fast-track this / fast
 
 # Fast-track
 
-Entry point for shipping a small, self-contained, low-risk change fast. It does two
+Entry point for shipping a small, self-contained, low-risk change fast. It does three
 things and then gets out of the way:
 
 1. **Resolve the issue** — every unit of work is anchored to a GitHub issue. If the
    user gave an issue link/number, use it. If they only described the change, **create
    the issue first** (invoking `/fast-track` with a description IS the go-ahead to create
    it — don't re-ask for permission to create).
-2. **Hand off to `feature-worktree-workflow` fast-track mode** — run **A → C → D**,
+2. **Ask upfront whether an AI bot should review the PR** (Step 1.5 below) - a
+   fast-tracked change is often exactly the kind nobody wants a review agent spending a
+   pass on.
+3. **Hand off to `feature-worktree-workflow` fast-track mode** - run **A → C → D**,
    **skip Phase B** (no `testing` merge, no shared-stack restart). The PR's own CI
    against the repo's base branch is the gate.
 
@@ -55,6 +58,23 @@ workflow — this is a fast track, not a checkpoint. (If the title or scope is g
 ambiguous from what the user wrote, ask one tight clarifying question before creating;
 otherwise create.)
 
+## Step 1.5 - Ask upfront: AI review or not?
+
+**Ask this at kickoff, right after the issue is resolved - not at Phase C.** One
+`AskUserQuestion`, single-select:
+
+*Do you want an AI bot to review this PR?*
+**Yes - let the review bot pick it up** [default] · **No - label it `no-review-bot`**
+
+Answer **No** for a change with nothing to review: a package-lock sync, a dependency
+bump, pure config/chore churn. Carry the answer into Phase C, which applies it as the
+`no-review-bot` label **before** `gh pr ready` - the question is asked **once**, here.
+
+Fold this into the `feature-worktree-workflow` kickoff form if that form is being shown
+anyway (it is the same question, #3 there) rather than asking twice. On a **yolo**
+fast-track nothing is asked: the default is **Yes**, unless the kickoff message said
+otherwise (e.g. `yolo, no-review-bot`).
+
 ## Step 2 — Run feature-worktree-workflow, fast-track mode
 
 **REQUIRED SUB-SKILL:** Use `feature-worktree-workflow` and follow its **Fast-track mode
@@ -67,7 +87,7 @@ Fast-track sequence:
 |-------|------|----------|
 | A Start | assign issue @me, milestone if part of an epic, branch `<type>/<number>-<slug>` off **`origin/$BASE`** in a worktree, push, empty scaffold commit, open **WIP draft PR** → `$BASE` (check `baseRefName` - `gh` defaults to the repo default, still `main`) | issue must exist (Step 1 guarantees it); `testing` checked out on MAIN_ROOT |
 | ~~B~~ | **SKIPPED** | no `testing` merge, no stack restart |
-| C Ship | rebase on latest `origin/$BASE`, push, add release note via `append-release-note` **in this same PR**, `gh pr ready`, comment issue summary | |
+| C Ship | rebase on latest `origin/$BASE`, push, add release note via `append-release-note` **in this same PR**, **apply the `no-review-bot` label if Step 1.5 said no**, `gh pr ready`, comment issue summary | label before ready - agents pick the PR up the moment it leaves draft |
 | D Teardown | after the **user** merges: `git fetch`, merge `origin/$BASE` → testing, rm worktree + local + remote branch | only after user confirms merge; never check out or pull `main` |
 
 ## Guardrails (inherited — do not skip)
@@ -78,6 +98,9 @@ Fast-track sequence:
   attach-only, implementation auto, no boot-verify prompt). Fast-track skips Phase B, so a
   yolo fast-track runs A → C silently and stops only at the Phase C `gh pr ready` handoff.
 - **No issue → no work.** Step 1 must yield a real issue before Phase A.
+- **The AI-review answer is applied BEFORE `gh pr ready`.** If Step 1.5 said no,
+  `gh pr edit <num> --add-label no-review-bot` while the PR is still a draft; labelling
+  after it goes ready is too late.
 - **Base is `origin/$BASE`, never `main`.** Branch off it, target the PR at it, rebase on
   it. Never check out or pull `main`.
 - **NEVER merge the PR yourself.** "fast track" / "ship" means get the PR ready-for-review
@@ -93,3 +116,6 @@ Fast-track sequence:
 - Running Phase B anyway "just to be safe" — that's the full workflow, not fast-track. If
   the change warrants integration testing, it isn't a fast-track; switch skills and say so.
 - Self-merging the PR when CI is green — never. Hand off.
+- Asking about AI review at Phase C instead of upfront, or asking twice because the
+  `feature-worktree-workflow` kickoff form also carries the question - ask once, at
+  kickoff.

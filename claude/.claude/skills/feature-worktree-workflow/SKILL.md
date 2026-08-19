@@ -43,6 +43,9 @@ end of Phase B):**
   - Implementation approach → auto (rule above).
   - Phase B boot-verify → note whether it matters and hand the stack restart to the user;
     **do not ask.**
+  - AI review of the PR → **yes, let the bot review it** (no `no-review-bot` label). To
+    skip bot review on a yolo run, the user says so in the kickoff message (e.g.
+    `yolo, no-review-bot`) - never ask for it.
 - **Zero follow-up questions** from kickoff until the natural end-of-Phase-B handoff.
 
 **Otherwise → present a ONE-TIME form (`AskUserQuestion`) at kickoff**, then obey the
@@ -53,6 +56,11 @@ answers for the rest of the run:
 2. *Implementation approach?* (single-select: **Auto — subagent when recommended, else
    inline (no prompt)** [default] · **Always ask me** · **Prefer inline** · **Prefer
    subagent**).
+3. *Do you want an AI bot to review this PR?* (single-select: **Yes - let the review bot
+   pick it up** [default] · **No - label it `no-review-bot`**). Answer **No** when there
+   is nothing worth a review pass: a package-lock sync, a dependency bump, pure
+   config/chore churn. The answer is applied **once, in Phase C, before `gh pr ready`** -
+   it is never re-asked there.
 
 For every stage the user did **not** opt into, apply the YOLO-mode default above
 **silently** — no prompt at that stage, ever. **Only pause at a stage the user explicitly
@@ -340,21 +348,38 @@ Integration happens on MAIN_ROOT, not in the worktree.
    - **exit 2** - the parent was closed unmerged. Re-target at `$BASE`, rebase off
      `origin/$BASE` keeping whatever parent commits you still need, then continue.
 
-5. **Mark the draft PR ready** (the PR already exists from Phase A): `gh pr ready <number-or-url>`.
+5. **Apply the AI-review decision - before `gh pr ready`, while the PR is still a draft.**
+   If the kickoff contract said **No** to bot review, label it now:
+
+   ```
+   gh label create no-review-bot --color ededed \
+     --description "Skip automated AI review" 2>/dev/null || true
+   gh pr edit <number-or-url> --add-label no-review-bot
+   ```
+
+   **Order matters:** review agents pick a PR up the moment it leaves draft, so the label
+   must land *before* step 6, not after. If the contract said **Yes** (or the run was
+   hands-off and took the default), add nothing. **Do not ask here** - the decision was
+   made once at kickoff.
+6. **Mark the draft PR ready** (the PR already exists from Phase A): `gh pr ready <number-or-url>`.
    Drop the `WIP:` prefix from the title and make sure the description reflects the final scope.
    Then record it: `ledger update --issue <number> --status ready`.
-6. **Comment on the issue with a summary** of what was done:
+7. **Comment on the issue with a summary** of what was done:
    `gh issue comment <number> --body "<summary of changes, decisions, anything notable>"`.
-7. **Sync Jira (mirror), unless GH-only:** if the GH issue body has a `Jira: none` line,
+8. **Sync Jira (mirror), unless GH-only:** if the GH issue body has a `Jira: none` line,
    skip this step. Otherwise invoke `jira-sync` — `sync review <number>` — to move the
    AII ticket to **Code Review / Testing** and comment the PR URL on it. Warns and
    continues on failure.
-8. The PR's CI against `$BASE` is the authoritative gate - not the `testing` result.
+9. The PR's CI against `$BASE` is the authoritative gate - not the `testing` result.
    Re-confirm the PR still targets `$BASE` (`gh pr view --json baseRefName`), not `main`.
 
 **GUARDRAIL (roadblock - do not skip): `ledger blockers` must exit non-blocked BEFORE
 `gh pr ready`.** A stacked PR whose parent has not merged stays a draft. Report which PR
 is holding it and stop - never merge the parent yourself to clear your own path.
+
+**GUARDRAIL (roadblock - do not skip): the `no-review-bot` label goes on BEFORE
+`gh pr ready`.** When the kickoff contract said no bot review, a PR that goes ready
+unlabelled has already been picked up - labelling after the fact does not undo it.
 
 **GUARDRAIL (roadblock - do not skip): rebase clean on `origin/$BASE` BEFORE `gh pr ready`.**
 The mandatory `git rebase "origin/$BASE"` in step 2 is where conflicts are caught early. The
@@ -436,7 +461,7 @@ push every commit, open the WIP draft PR, add the release note in the *same* PR,
 |-------|-------|--------|-----------|
 | A Start | MAIN_ROOT → worktree | resolve `BASE`; assign issue @me; attach slice/epic milestone (create if it starts a new epic, skip if one-off); branch `<type>/<number>-<slug>` off **`origin/$BASE`**; push; empty commit; open WIP draft PR → **`$BASE`** (verify `baseRefName`); **ask: create / link existing / skip Jira** (create+link → **In Progress**; skip → `jira-sync` `skip` writes `Jira: none`); **`ledger claim` the issue** (stacked work: branch off the parent, PR base = parent, `--stacked-on`) | **issue must exist** (else roadblock); `testing` checked out on root (else roadblock); **`ledger claim` conflict = roadblock** |
 | B Integrate | MAIN_ROOT (`testing`) | `git fetch`, merge `origin/$BASE`, then feature; run static checks; **hand the restart to the user** (don't auto-boot) | `testing` ≠ merge gate; one shared stack; never restart without consent |
-| C Ship | feature worktree | **rebase on `origin/$BASE` (mandatory - `git fetch` + `git rebase "origin/$BASE"`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), **`ledger blockers` (un-stack if clear; hold + report if blocked)**, `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on `origin/$BASE` AND `ledger blockers` clear BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
+| C Ship | feature worktree | **rebase on `origin/$BASE` (mandatory - `git fetch` + `git rebase "origin/$BASE"`, resolve conflicts HERE, `push --force-with-lease`)**, add release note (`append-release-note`, same PR), **`ledger blockers` (un-stack if clear; hold + report if blocked)**, **`no-review-bot` label if the contract said no bot review**, `gh pr ready`, comment issue summary; **`jira-sync` `sync review` → Code Review / Testing** (skip if `Jira: none`) | **rebase clean on `origin/$BASE`, `ledger blockers` clear, AND the `no-review-bot` label (if any) applied BEFORE `gh pr ready`** (conflicts caught here, not at merge); PR CI is the real gate; release note ships in the same PR |
 | D Teardown | MAIN_ROOT | `git fetch`, merge `origin/$BASE`→testing, then rm worktree + local branch + **remote branch** (`git push origin --delete`); **`ledger release`**; **`jira-sync` `sync uat` → Ready for UAT** (skip if `Jira: none`) | **never check out or pull `main`**; can't rm cwd worktree; watch squash drift; confirm issue closed |
 
-**Cross-cutting:** **resolve `BASE` (`develop` if `origin/develop` exists, else `main`) at the start of every phase and use `origin/$BASE` - NEVER check out, pull, or merge `main` on a dev machine** · **set the interaction contract ONCE at kickoff and never re-prompt - `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt** · one issue per unit of work · **the shared agent ledger is claimed in A, gated in C (`ledger blockers` before `gh pr ready`), released in D - a stacked PR targets its parent branch and stays draft until the parent merges; never merge someone else's PR to unblock yourself (see the `agent-ledger` skill)** · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only - **never push `testing`**) · always `git fetch origin` before merging or rebasing onto the base · keep the issue/PR as a live work log · **the Jira mirror is optional - Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).
+**Cross-cutting:** **resolve `BASE` (`develop` if `origin/develop` exists, else `main`) at the start of every phase and use `origin/$BASE` - NEVER check out, pull, or merge `main` on a dev machine** · **set the interaction contract ONCE at kickoff and never re-prompt - `yolo` (or opt-out of everything) = fully hands-off to end of Phase B; else a one-time form gates spec / plan / implementation involvement; hands-off defaults: Jira skip, milestone attach-only, implementation auto, no boot-verify prompt, bot review on** · **the kickoff form asks once whether an AI bot should review the PR; a "no" is applied in Phase C as the `no-review-bot` label, added BEFORE `gh pr ready`** · one issue per unit of work · **the shared agent ledger is claimed in A, gated in C (`ledger blockers` before `gh pr ready`), released in D - a stacked PR targets its parent branch and stays draft until the parent merges; never merge someone else's PR to unblock yourself (see the `agent-ledger` skill)** · **choose implementation approach in Phase A: subagent-driven if recommended (independent, well-scoped tasks) → just do it; unclear → ask only if the contract permits** · push every commit immediately (feature branches only - **never push `testing`**) · always `git fetch origin` before merging or rebasing onto the base · keep the issue/PR as a live work log · **the Jira mirror is optional - Phase A always asks create / link existing / skip; a `Jira: none` marker means GH-only, so Phases C/D skip all Jira steps** · "fast track" = skip Phase B (see Fast-track mode).
