@@ -1,0 +1,30 @@
+#
+# even-panes - keep every pane in a herdr tab the same size, automatically.
+#
+# `prefix + =` (bin/.local/bin/herdr-even-panes) does this on demand. herdr fires
+# a plugin event whenever a pane appears or disappears, which is exactly when a
+# tab stops being even, so the same script runs from here too and the layout
+# never drifts in the first place.
+#
+# Not published anywhere: it is linked straight out of this repo with
+# `herdr plugin link _plugins/even-panes` (see _migration/install/55-herdr-plugins.sh),
+# so the manifest path in `herdr plugin list` points back at the working tree.
+#
+id = "muzza.even-panes"
+name = "Even Panes"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Even out a tab's panes whenever one is opened or closed, the way tmux's select-layout even-horizontal does on demand."
+platforms = ["linux", "macos"]
+
+# herdr has already split the parent 50/50 by the time this fires, which is only
+# even for the first split - the third pane onwards needs the whole tab redone.
+[[events]]
+on = "pane.created"
+command = ["./on-pane-event.sh"]
+
+# The closed pane's space goes to its sibling alone, so the tab is lopsided the
+# moment a pane is killed.
+[[events]]
+on = "pane.closed"
+command = ["./on-pane-event.sh"]

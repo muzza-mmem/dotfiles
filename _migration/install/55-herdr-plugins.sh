@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # 55-herdr-plugins.sh — install the herdr plugins that config.toml already
-# binds keys to.
+# binds keys to, and link the ones this repo ships itself.
 #
 # herdr/.config/herdr/config.toml declares two `plugin_action` bindings for
 # cloudmanic.herdr-plus, and this repo tracks that plugin's project templates
@@ -16,6 +16,10 @@
 # in first, and 50-stow.sh is what forces ~/.config/herdr/plugins to be a real
 # directory. Installing before that would leave herdr writing the 9MB clone
 # into a folded symlink, i.e. straight into this repo's working tree.
+#
+# This repo also ships its own plugins under _plugins/ (currently even-panes,
+# which keeps a tab's panes equally sized). Those are never published, so they
+# are linked from the working tree rather than installed from GitHub.
 #
 # `herdr plugin install` builds the plugin with `sh scripts/build.sh`, which
 # needs go on PATH. 40-tools.sh installs the toolchain to ~/.local/go but its
@@ -33,6 +37,7 @@ PLUGINS=(
 
 if [[ $DRY_RUN == 1 ]]; then
 	warn "would install herdr plugins: ${PLUGINS[*]}"
+	warn "would link local herdr plugins from $REPO_ROOT/_plugins/"
 	exit 0
 fi
 
@@ -52,6 +57,22 @@ for entry in "${PLUGINS[@]}"; do
 	log "installing herdr plugin $source"
 	herdr plugin install "$source" --yes >/dev/null ||
 		warn "could not install $source — retry by hand: herdr plugin install $source"
+done
+
+# Local plugins live in _plugins/ and are never published, so they are linked
+# straight out of the working tree - `herdr plugin link` records that absolute
+# path, which is why this must run against the repo the machine will keep using.
+for manifest in "$REPO_ROOT"/_plugins/*/herdr-plugin.toml; do
+	[[ -e $manifest ]] || continue
+	dir=$(dirname "$manifest")
+	id=$(sed -n 's/^id = "\(.*\)"/\1/p' "$manifest" | head -1)
+	if [[ -n $id ]] && grep -q "$id" <<<"$installed"; then
+		ok "herdr plugin already linked: $id"
+		continue
+	fi
+	log "linking herdr plugin $dir"
+	herdr plugin link "$dir" >/dev/null ||
+		warn "could not link $dir - retry by hand: herdr plugin link $dir"
 done
 
 herdr plugin list 2>/dev/null | grep -q 'plugin installed' ||

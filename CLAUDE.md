@@ -68,7 +68,7 @@ This stows to `~/.config/tmux/tmux.conf`. Only fall back to placing a file direc
 
 ### Current contents
 
-Inventory as of 2026-08-19 (96 tracked files). Stow packages:
+Inventory as of 2026-08-19 (98 tracked files). Stow packages:
 
 | Package | Stows to | Contents |
 |---|---|---|
@@ -84,14 +84,17 @@ Inventory as of 2026-08-19 (96 tracked files). Stow packages:
 Non-package directories:
 
 - `_migration/` — one-shot machine rebuild (see below).
+- `_plugins/` — herdr plugins this repo ships (`even-panes`), linked from the working tree by `_migration/install/55-herdr-plugins.sh`; never stowed.
 - `docs/superpowers/` — plans and specs from past work; reference only.
 
-### `_migration/` is not a Stow package
+### `_`-prefixed directories are not Stow packages
 
-Every other top-level directory is a Stow package. `_migration/` is the
-exception: it holds the one-shot machine rebuild (`bootstrap.sh`, install
-modules, `MIGRATION.md`). Never run `stow _migration`. The leading underscore
-is there to make that obvious at a glance.
+Every top-level directory is a Stow package except the ones whose name starts
+with an underscore: `_migration/` holds the one-shot machine rebuild
+(`bootstrap.sh`, install modules, `MIGRATION.md`), and `_plugins/` holds the
+herdr plugins linked into herdr from the working tree. Nothing in either belongs
+under `~`, so never run `stow _migration` or `stow _plugins`. The leading
+underscore is there to make that obvious at a glance.
 
 ## Adding configs for a new package
 

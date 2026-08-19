@@ -9,8 +9,9 @@
 # ratio per split: weight each one by how many panes sit on either side of it and
 # every pane ends up with the same share, however the splits are nested.
 #
-#   herdr-even-panes            even out the tab this pane is in
-#   herdr-even-panes <tab-id>   even out a named tab, e.g. wA:tH
+#   herdr-even-panes                 even out the tab this pane is in
+#   herdr-even-panes <tab-id>        even out a named tab, e.g. wA:tH
+#   herdr-even-panes --skip-zoomed   leave a tab alone while a pane is zoomed
 #
 set -euo pipefail
 
@@ -26,12 +27,20 @@ herdr_api() {
 	printf '%s\n' "$1" | timeout 5 nc -UN "$SOCKET" | head -1
 }
 
-case "${1:-}" in
---help | -h)
-	sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'
-	exit 0
-	;;
-esac
+SKIP_ZOOMED=0
+while [[ ${1:-} == -* ]]; do
+	case $1 in
+	--help | -h)
+		sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	--skip-zoomed)
+		SKIP_ZOOMED=1
+		shift
+		;;
+	*) die "unknown option: $1" ;;
+	esac
+done
 
 SOCKET=${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}
 [[ -S $SOCKET ]] || die "not inside herdr (no socket at $SOCKET)"
@@ -50,6 +59,12 @@ if err=$(jq -r '.error.message // empty' <<<"$layout"); [[ -n $err ]]; then
 	die "layout.export failed: $err"
 fi
 TAB=$(jq -r '.result.layout.tab_id' <<<"$layout")
+
+# A zoomed tab shows one pane full-screen; resizing the splits hidden behind it
+# would only surface as a surprise re-layout on unzoom.
+if [[ $SKIP_ZOOMED == 1 && $(jq -r '.result.layout.zoomed' <<<"$layout") == true ]]; then
+	exit 0
+fi
 
 # Walk the tree and emit a set_split_ratio request per split. The path is the
 # route down from the root: false takes the first branch, true the second.

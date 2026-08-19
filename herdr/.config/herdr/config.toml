@@ -94,6 +94,9 @@ navigate_pane_right = "l"
 # tmux: bind = select-layout even-horizontal. herdr has no equalize action of
 # its own (prefix+r resize mode only nudges one split at a time), so the key
 # runs a helper that rewrites every split ratio in the tab over the socket API.
+# The same helper runs by itself whenever a pane opens or closes - see the
+# even-panes plugin in _plugins/ - so this key is only needed after a manual
+# resize has knocked a tab out of shape.
 [[keys.command]]
 key = "prefix+="
 type = "shell"
