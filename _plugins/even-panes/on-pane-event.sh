@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 #
-# on-pane-event.sh - herdr runs this on pane.created and pane.closed. It works
-# out which tab just changed shape and hands it to herdr-even-panes.
+# on-pane-event.sh - herdr runs this whenever a pane appears or disappears. It
+# works out which tab just changed shape and hands it to herdr-even-panes.
 #
-# pane.created is easy: herdr sets HERDR_TAB_ID to the new pane's tab. pane.closed
-# is not - the pane is gone, so the event carries only its id and workspace, and
+# A pane goes away under two different events: pane.closed when something kills
+# it (prefix+x, closing its tab) and pane.exited when the program inside it ends
+# by itself, which is what ctrl+d on a shell does. Both are handled here.
+#
+# pane.created is easy: herdr sets HERDR_TAB_ID to the new pane's tab. The other
+# two are not - the pane is gone, so the event carries only its id and workspace, and
 # "the focused tab" is the wrong guess: closing a whole tab fires one pane.closed
 # per pane and would then flatten whichever unrelated tab you land on. So we keep
 # our own pane -> tab map in the plugin state dir, refreshed on every event, and
@@ -45,7 +49,7 @@ case "${HERDR_PLUGIN_EVENT:-}" in
 pane.created)
 	tab=${HERDR_TAB_ID:-}
 	;;
-pane.closed)
+pane.closed | pane.exited)
 	pane=${HERDR_PANE_ID:-}
 	tab=$(jq -r --arg p "$pane" '.[$p] // empty' <<<"$previous")
 	# The tab went with it (a whole tab or workspace was closed): nothing to even.

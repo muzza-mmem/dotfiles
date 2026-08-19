@@ -24,7 +24,14 @@ on = "pane.created"
 command = ["./on-pane-event.sh"]
 
 # The closed pane's space goes to its sibling alone, so the tab is lopsided the
-# moment a pane is killed.
+# moment a pane is killed. Two events cover that, and herdr fires exactly one of
+# them: pane.closed when the pane is killed from the outside (prefix+x, closing
+# its tab), pane.exited when the program inside it ends on its own - which is
+# what ctrl+d on a shell does, the most common way a pane actually goes away.
 [[events]]
 on = "pane.closed"
+command = ["./on-pane-event.sh"]
+
+[[events]]
+on = "pane.exited"
 command = ["./on-pane-event.sh"]
